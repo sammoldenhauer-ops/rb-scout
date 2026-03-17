@@ -1,0 +1,905 @@
+erRadius:8,fontSize:10,color:"#4da6ff88"}}>
+              Rush and receiving archetypes will be automatically assigned from your season stats.
+            </div>
+          </div>
+        )}
+
+        {/* Step 1: Seasons */}
+        {step===1&&(
+          <div>
+            <div style={{fontSize:10,color:"#555",marginBottom:16}}>Enter stats for each college season. At least Season 1 is required. Stats are used to calculate the prospect score.</div>
+            {form.seasons.map((s,idx)=>(
+              <div key={idx} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10,padding:"16px",marginBottom:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:s.redshirt?0:14}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{fontSize:12,fontWeight:700,color:"#f0c040"}}>Season {s.n}</div>
+                    {/* Portal badge — school differs from previous season */}
+                    {idx>0&&s.school&&form.seasons[idx-1]?.school&&s.school!==form.seasons[idx-1].school&&(
+                      <span style={{fontSize:9,padding:"2px 7px",background:"rgba(77,166,255,0.15)",border:"1px solid rgba(77,166,255,0.4)",borderRadius:10,color:"#4da6ff",fontWeight:700,letterSpacing:0.5}}>🔄 PORTAL</span>
+                    )}
+                    {s.redshirt&&<span style={{fontSize:18}}>🎽</span>}
+                  </div>
+                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    <button onClick={()=>setSeason(idx,"redshirt",!s.redshirt)}
+                      style={{background:s.redshirt?"rgba(240,192,64,0.15)":"rgba(255,255,255,0.04)",border:"1px solid "+(s.redshirt?"rgba(240,192,64,0.4)":"rgba(255,255,255,0.1)"),borderRadius:6,color:s.redshirt?"#f0c040":"#555",padding:"3px 10px",fontSize:9,cursor:"pointer"}}>
+                      {s.redshirt?"✓ REDSHIRT":"REDSHIRT"}
+                    </button>
+                    {idx>0&&<button onClick={()=>removeSeason(idx)} style={{background:"rgba(224,80,80,0.1)",border:"1px solid rgba(224,80,80,0.25)",borderRadius:6,color:"#e05050",padding:"3px 10px",fontSize:9}}>REMOVE</button>}
+                  </div>
+                </div>
+                {s.redshirt&&<div style={{textAlign:"center",padding:"10px 0",fontSize:10,color:"#555"}}>🎽 Redshirt season — no stats recorded</div>}
+                {!s.redshirt&&(<div>{/* ── Year + School → auto SoS ── */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 14px",marginBottom:4}}>
+                  {sInp(idx,"Season Year","yr","e.g. 2024","number")}
+                  {/* College typeahead */}
+                  {(()=>{
+                    const allTeams=[...new Set(Object.values(SOS_LOOKUP).flat().map(t=>t.team))].sort();
+                    const schoolVal=s.school||'';
+                    const schoolLow=schoolVal.toLowerCase();
+                    const ddOpen=ddOpenMap[idx]||false;
+                    const setDdOpen=(v)=>setDdOpenMap(m=>({...m,[idx]:v}));
+                    const suggestions=schoolVal.length>=1&&ddOpen
+                      ? allTeams.filter(t=>t.toLowerCase().includes(schoolLow)).slice(0,8)
+                      : [];
+                    const pickSchool=(t)=>{
+                      const yr3=String(s?.yr||'');
+                      const pool2=[...(SOS_LOOKUP[yr3]||[]),...Object.values(sosByYear[yr3]||sosByYear[String(Number(yr3)-1)]||{})];
+                      const m=pool2.find(d=>d.team.toLowerCase()===t.toLowerCase())
+                        ||pool2.find(d=>d.team.toLowerCase().startsWith(t.toLowerCase()))
+                        ||pool2.find(d=>t.toLowerCase().startsWith(d.team.toLowerCase()));
+                      setForm(f=>({...f,seasons:f.seasons.map((ss,i)=>i===idx?{
+                        ...ss,school:t,
+                        sos_label:m?m.label:ss.sos_label,
+                        sos_rank:m?String(m.rank||''):ss.sos_rank,
+                        sos_mag:m?String(m.mag||''):ss.sos_mag
+                      }:ss)}));
+                      setDdOpen(false);
+                    };
+                    return (
+                      <div style={{marginBottom:10,position:'relative'}}>
+                        <label style={{fontSize:9,color:'#444',letterSpacing:1,display:'block',marginBottom:4}}>COLLEGE</label>
+                        <input
+                          type="text"
+                          value={schoolVal}
+                          onChange={e=>{setSeason(idx,'school',e.target.value);setDdOpen(true);}}
+                          onFocus={()=>setDdOpen(true)}
+                          onBlur={()=>setTimeout(()=>setDdOpen(false),150)}
+                          placeholder="Start typing (e.g. Tex)"
+                          autoComplete="off"
+                          style={{width:'100%',boxSizing:'border-box',background:'#0d1421',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:'#ccc',padding:'7px 11px',fontSize:11,fontFamily:'monospace',outline:'none'}}
+                        />
+                        {suggestions.length>0&&(
+                          <div style={{position:'absolute',top:'100%',left:0,right:0,background:'#131a24',border:'1px solid rgba(255,255,255,0.12)',borderRadius:'0 0 7px 7px',zIndex:50,maxHeight:200,overflowY:'auto',boxShadow:'0 8px 24px rgba(0,0,0,0.5)'}}>
+                            {suggestions.map(t=>(
+                              <div key={t}
+                                onMouseDown={e=>{
+                                  e.preventDefault();
+                                  pickSchool(t);
+                                }}
+                                style={{padding:'7px 12px',fontSize:11,color:'#ccc',cursor:'pointer',borderBottom:'1px solid rgba(255,255,255,0.04)',fontFamily:'monospace'}}
+                                onMouseEnter={e=>e.currentTarget.style.background='rgba(240,192,64,0.08)'}
+                                onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                                {(()=>{
+                                  const q=schoolVal.toLowerCase();
+                                  const tl=t.toLowerCase();
+                                  const i=tl.indexOf(q);
+                                  if(i<0) return t;
+                                  return <>{t.slice(0,i)}<span style={{color:'#f0c040',fontWeight:700}}>{t.slice(i,i+schoolVal.length)}</span>{t.slice(i+schoolVal.length)}</>;
+                                })()}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+                {/* SoS auto-lookup — checks SOS_LOOKUP first, then uploaded sosByYear */}
+                {(()=>{
+                  const yr2=String(s?.yr||'');
+                  const sc2=(s?.school||'').toLowerCase().trim();
+                  if(!yr2||!sc2) return (
+                    <div style={{marginBottom:10,padding:"8px 12px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:7,fontSize:9,color:"#444"}}>
+                      Enter Season Year and College above to auto-populate Strength of Schedule.
+                    </div>
+                  );
+                  // Search built-in data first, then uploaded
+                  const builtIn=(SOS_LOOKUP[yr2]||[]);
+                  const uploaded=Object.values(sosByYear[yr2]||sosByYear[String(Number(yr2)-1)]||{});
+                  const pool=[...builtIn,...uploaded];
+                  // Exact match first, then starts-with, then contains — prevents "Texas" beating "North Texas"
+                  const match2=pool.find(d=>d.team.toLowerCase()===sc2)
+                    ||pool.find(d=>d.team.toLowerCase().startsWith(sc2)&&sc2.length>3)
+                    ||pool.find(d=>sc2.startsWith(d.team.toLowerCase())&&d.team.length>3)
+                    ||pool.find(d=>d.team.toLowerCase().includes(sc2)&&sc2.length>4);
+                  if(!match2) return (
+                    <div style={{marginBottom:10,padding:"8px 12px",background:"rgba(240,135,58,0.05)",border:"1px solid rgba(240,135,58,0.2)",borderRadius:7,fontSize:9,color:"#f0873a"}}>
+                      No SoS data found for "{s.school}" in {yr2}. Upload a new SoS season or check the school name spelling.
+                    </div>
+                  );
+                  const applied=s.sos_label===match2.label&&String(s.sos_rank)===String(match2.rank||'');
+                  const applyMatch=()=>setForm(f=>({...f,seasons:f.seasons.map((ss,i)=>i===idx?{...ss,sos_label:match2.label,sos_rank:String(match2.rank||''),sos_mag:String(match2.mag||'')}:ss)}));
+                  return (
+                    <div style={{marginBottom:10,padding:"8px 12px",background:applied?"rgba(93,191,106,0.06)":"rgba(77,166,255,0.06)",border:"1px solid "+(applied?"rgba(93,191,106,0.22)":"rgba(77,166,255,0.2)"),borderRadius:7,fontSize:10,display:"flex",alignItems:"center",gap:10,justifyContent:"space-between"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{fontSize:14}}>📊</span>
+                        <div style={{color:applied?"#5dbf6a":"#4da6ff"}}>
+                          <strong>{match2.team}</strong> · {yr2}
+                          <span style={{marginLeft:8,padding:"2px 8px",background:applied?"rgba(93,191,106,0.12)":"rgba(77,166,255,0.12)",borderRadius:4,fontSize:9,fontWeight:700}}>{match2.label}</span>
+                          <span style={{color:applied?"#5dbf6a88":"#4da6ff88",marginLeft:8,fontSize:9}}>Rank #{match2.rank} · Mag {match2.mag?.toFixed(3)}</span>
+                        </div>
+                      </div>
+                      {applied
+                        ? <span style={{fontSize:9,color:"#5dbf6a88"}}>✓ applied</span>
+                        : <button onClick={applyMatch} style={{background:"rgba(77,166,255,0.15)",border:"1px solid rgba(77,166,255,0.4)",borderRadius:5,color:"#4da6ff",fontSize:9,padding:"3px 12px",cursor:"pointer",fontFamily:"monospace",whiteSpace:"nowrap"}}>APPLY SoS</button>
+                      }
+                    </div>
+                  );
+                })()}
+                {/* ── Rushing ── */}
+                <div style={{fontSize:10,color:"#f0873a",letterSpacing:1,margin:"8px 0 10px"}}>— RUSHING —</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:"0 10px"}}>
+                  {sInp(idx,"Attempts","attempts","","number")}
+                  {sInp(idx,"Rush Yards","rush_yds","","number")}
+                  {sInp(idx,"Y/Attempt","ypa","","number")}
+                  {sInp(idx,"Rush TDs","rush_tds","","number")}
+                  {sInp(idx,"Fumbles","fumbles","","number")}
+                  {sInp(idx,"PFF Run Grade","run_grade","0–100","number")}
+                  {sInp(idx,"YCO (Yds After Contact)","yco_a","","number")}
+                  {/* MTF raw + MTF/A auto */}
+                  {sInp(idx,"MTF (Missed Tackles)","mtf","","number")}
+                  {(()=>{
+                    const att=parseFloat(s.attempts); const mtf=parseFloat(s.mtf);
+                    const val=(!isNaN(att)&&att>0&&!isNaN(mtf))?mtf/att:null;
+                    return (
+                      <div style={{marginBottom:10}}>
+                        <label style={{fontSize:9,color:"#4da6ff",letterSpacing:1,display:"block",marginBottom:4}}>MTF/A <span style={{color:"#333"}}>(auto)</span></label>
+                        <div style={{background:"rgba(77,166,255,0.06)",border:"1px solid rgba(77,166,255,0.18)",borderRadius:6,padding:"7px 10px",fontSize:13,color:"#4da6ff",fontFamily:"monospace",minHeight:36}}>
+                          {val!==null?val.toFixed(2):<span style={{color:"#333"}}>—</span>}
+                        </div>
+                        {val!==null&&<div style={{fontSize:8,color:"#444",marginTop:2}}>{s.mtf} ÷ {s.attempts} = {val.toFixed(2)}</div>}
+                      </div>
+                    );
+                  })()}
+                  {/* 10+ raw + 10+/A auto */}
+                  {sInp(idx,"10+ Yd Runs","ten_plus","","number")}
+                  {(()=>{
+                    const att=parseFloat(s.attempts); const tp=parseFloat(s.ten_plus);
+                    const val=(!isNaN(att)&&att>0&&!isNaN(tp))?tp/att:null;
+                    return (
+                      <div style={{marginBottom:10}}>
+                        <label style={{fontSize:9,color:"#4da6ff",letterSpacing:1,display:"block",marginBottom:4}}>10+/A <span style={{color:"#333"}}>(auto)</span></label>
+                        <div style={{background:"rgba(77,166,255,0.06)",border:"1px solid rgba(77,166,255,0.18)",borderRadius:6,padding:"7px 10px",fontSize:13,color:"#4da6ff",fontFamily:"monospace",minHeight:36}}>
+                          {val!==null?val.toFixed(2):<span style={{color:"#333"}}>—</span>}
+                        </div>
+                        {val!==null&&<div style={{fontSize:8,color:"#444",marginTop:2}}>{s.ten_plus} ÷ {s.attempts} = {val.toFixed(2)}</div>}
+                      </div>
+                    );
+                  })()}
+                  {/* 15+ raw + 15+/A auto */}
+                  {sInp(idx,"15+ Yd Runs","fif_plus","","number")}
+                  {(()=>{
+                    const att=parseFloat(s.attempts); const fp=parseFloat(s.fif_plus);
+                    const val=(!isNaN(att)&&att>0&&!isNaN(fp))?fp/att:null;
+                    return (
+                      <div style={{marginBottom:10}}>
+                        <label style={{fontSize:9,color:"#4da6ff",letterSpacing:1,display:"block",marginBottom:4}}>15+/A <span style={{color:"#333"}}>(auto)</span></label>
+                        <div style={{background:"rgba(77,166,255,0.06)",border:"1px solid rgba(77,166,255,0.18)",borderRadius:6,padding:"7px 10px",fontSize:13,color:"#4da6ff",fontFamily:"monospace",minHeight:36}}>
+                          {val!==null?val.toFixed(2):<span style={{color:"#333"}}>—</span>}
+                        </div>
+                        {val!==null&&<div style={{fontSize:8,color:"#444",marginTop:2}}>{s.fif_plus} ÷ {s.attempts} = {val.toFixed(2)}</div>}
+                      </div>
+                    );
+                  })()}
+                  {sInp(idx,"BAY (Breakaway Yds)","bay","","number")}
+                  {(()=>{
+                    const bay=parseFloat(s.bay); const ryds=parseFloat(s.rush_yds);
+                    const val=(!isNaN(bay)&&!isNaN(ryds)&&ryds>0)?bay/ryds*100:null;
+                    return (
+                      <div style={{marginBottom:10}}>
+                        <label style={{fontSize:9,color:"#4da6ff",letterSpacing:1,display:"block",marginBottom:4}}>BAY% <span style={{color:"#333"}}>(auto)</span></label>
+                        <div style={{background:"rgba(77,166,255,0.06)",border:"1px solid rgba(77,166,255,0.18)",borderRadius:6,padding:"7px 10px",fontSize:13,color:"#4da6ff",fontFamily:"monospace",minHeight:36}}>
+                          {val!==null?val.toFixed(2)+"%":<span style={{color:"#333"}}>—</span>}
+                        </div>
+                        {val!==null&&<div style={{fontSize:8,color:"#444",marginTop:2}}>{s.bay} ÷ {s.rush_yds} × 100 = {val.toFixed(2)}%</div>}
+                      </div>
+                    );
+                  })()}
+                  {/* 1Ds raw + 1D/A auto */}
+                  {sInp(idx,"1Ds (First Downs)","first_downs","","number")}
+                  {(()=>{
+                    const att=parseFloat(s.attempts); const fd=parseFloat(s.first_downs);
+                    const val=(!isNaN(att)&&att>0&&!isNaN(fd))?fd/att:null;
+                    return (
+                      <div style={{marginBottom:10}}>
+                        <label style={{fontSize:9,color:"#4da6ff",letterSpacing:1,display:"block",marginBottom:4}}>1D/A <span style={{color:"#333"}}>(auto)</span></label>
+                        <div style={{background:"rgba(77,166,255,0.06)",border:"1px solid rgba(77,166,255,0.18)",borderRadius:6,padding:"7px 10px",fontSize:13,color:"#4da6ff",fontFamily:"monospace",minHeight:36}}>
+                          {val!==null?val.toFixed(2):<span style={{color:"#333"}}>—</span>}
+                        </div>
+                        {val!==null&&<div style={{fontSize:8,color:"#444",marginTop:2}}>{s.first_downs} ÷ {s.attempts} = {val.toFixed(2)}</div>}
+                      </div>
+                    );
+                  })()}
+                  {sInp(idx,"ELU (PFF Elusiveness)","elu","","number")}
+                  {sInp(idx,"Yds Dominator %","ydom","","number")}
+                  {sInp(idx,"TD Dominator %","tddom","","number")}
+                </div>
+                {/* ── Receiving ── */}
+                <div style={{fontSize:10,color:"#5dbf6a",letterSpacing:1,margin:"8px 0 10px"}}>— RECEIVING —</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:"0 10px"}}>
+                  {sInp(idx,"Targets","targets","","number")}
+                  {sInp(idx,"Receptions","receptions","","number")}
+                  {(()=>{
+                    const tgt=parseFloat(s.targets),rec=parseFloat(s.receptions);
+                    const val=(!isNaN(tgt)&&tgt>0&&!isNaN(rec))?rec/tgt*100:null;
+                    return(<div style={{marginBottom:10}}>
+                      <label style={{fontSize:9,color:"#4da6ff",letterSpacing:1,display:"block",marginBottom:4}}>REC% <span style={{color:"#333"}}>(auto)</span></label>
+                      <div style={{background:"rgba(77,166,255,0.06)",border:"1px solid rgba(77,166,255,0.18)",borderRadius:6,padding:"7px 10px",fontSize:13,color:"#4da6ff",fontFamily:"monospace",minHeight:36}}>{val!==null?val.toFixed(2)+"%":<span style={{color:"#333"}}>—</span>}</div>
+                      {val!==null&&<div style={{fontSize:8,color:"#444",marginTop:2}}>{s.receptions} ÷ {s.targets} × 100 = {val.toFixed(2)}%</div>}
+                    </div>);
+                  })()}
+                  {sInp(idx,"Rec Yards","rec_yds","","number")}
+                  {(()=>{
+                    const rec=parseFloat(s.receptions),ryds=parseFloat(s.rec_yds);
+                    const val=(!isNaN(rec)&&rec>0&&!isNaN(ryds))?ryds/rec:null;
+                    return(<div style={{marginBottom:10}}>
+                      <label style={{fontSize:9,color:"#4da6ff",letterSpacing:1,display:"block",marginBottom:4}}>Y/Reception <span style={{color:"#333"}}>(auto)</span></label>
+                      <div style={{background:"rgba(77,166,255,0.06)",border:"1px solid rgba(77,166,255,0.18)",borderRadius:6,padding:"7px 10px",fontSize:13,color:"#4da6ff",fontFamily:"monospace",minHeight:36}}>{val!==null?val.toFixed(2):<span style={{color:"#333"}}>—</span>}</div>
+                      {val!==null&&<div style={{fontSize:8,color:"#444",marginTop:2}}>{s.rec_yds} ÷ {s.receptions} = {val.toFixed(2)}</div>}
+                    </div>);
+                  })()}
+                  {sInp(idx,"Rec TDs","rec_tds","","number")}
+                  {sInp(idx,"PFF Recv Grade","recv_grade","0–100","number")}
+                  {sInp(idx,"RECV (Receiving Snaps)","recv_snaps","","number")}
+                  {sInp(idx,"YAC (Yards After Catch)","yac_raw","","number")}
+                  {(()=>{
+                    const rec=parseFloat(s.receptions),yac=parseFloat(s.yac_raw);
+                    const val=(!isNaN(rec)&&rec>0&&!isNaN(yac))?yac/rec:null;
+                    return(<div style={{marginBottom:10}}>
+                      <label style={{fontSize:9,color:"#4da6ff",letterSpacing:1,display:"block",marginBottom:4}}>YAC/Reception <span style={{color:"#333"}}>(auto)</span></label>
+                      <div style={{background:"rgba(77,166,255,0.06)",border:"1px solid rgba(77,166,255,0.18)",borderRadius:6,padding:"7px 10px",fontSize:13,color:"#4da6ff",fontFamily:"monospace",minHeight:36}}>{val!==null?val.toFixed(2):<span style={{color:"#333"}}>—</span>}</div>
+                      {val!==null&&<div style={{fontSize:8,color:"#444",marginTop:2}}>{s.yac_raw} ÷ {s.receptions} = {val.toFixed(2)}</div>}
+                    </div>);
+                  })()}
+                  {(()=>{
+                    const recv=parseFloat(s.recv_snaps),ryds=parseFloat(s.rec_yds);
+                    const val=(!isNaN(recv)&&recv>0&&!isNaN(ryds))?ryds/recv:null;
+                    return(<div style={{marginBottom:10}}>
+                      <label style={{fontSize:9,color:"#4da6ff",letterSpacing:1,display:"block",marginBottom:4}}>Y/RR <span style={{color:"#333"}}>(auto)</span></label>
+                      <div style={{background:"rgba(77,166,255,0.06)",border:"1px solid rgba(77,166,255,0.18)",borderRadius:6,padding:"7px 10px",fontSize:13,color:"#4da6ff",fontFamily:"monospace",minHeight:36}}>{val!==null?val.toFixed(2):<span style={{color:"#333"}}>—</span>}</div>
+                      {val!==null&&<div style={{fontSize:8,color:"#444",marginTop:2}}>{s.rec_yds} ÷ {s.recv_snaps} = {val.toFixed(2)}</div>}
+                    </div>);
+                  })()}
+                  {sInp(idx,"ADOT (Avg Depth of Target)","adot","","number")}
+                  {sInp(idx,"MTF (Missed Tackles)","mtf_recv","","number")}
+                  {(()=>{
+                    const rec=parseFloat(s.receptions),mtf=parseFloat(s.mtf_recv);
+                    const val=(!isNaN(rec)&&rec>0&&!isNaN(mtf))?mtf/rec:null;
+                    return(<div style={{marginBottom:10}}>
+                      <label style={{fontSize:9,color:"#4da6ff",letterSpacing:1,display:"block",marginBottom:4}}>MTF/Reception <span style={{color:"#333"}}>(auto)</span></label>
+                      <div style={{background:"rgba(77,166,255,0.06)",border:"1px solid rgba(77,166,255,0.18)",borderRadius:6,padding:"7px 10px",fontSize:13,color:"#4da6ff",fontFamily:"monospace",minHeight:36}}>{val!==null?val.toFixed(2):<span style={{color:"#333"}}>—</span>}</div>
+                      {val!==null&&<div style={{fontSize:8,color:"#444",marginTop:2}}>{s.mtf_recv} ÷ {s.receptions} = {val.toFixed(2)}</div>}
+                    </div>);
+                  })()}
+                </div></div>)
+}</div>
+            ))}
+            {form.seasons.length < 5 && (
+              <button onClick={addSeason} style={{width:"100%",background:"rgba(77,166,255,0.07)",border:"1px dashed rgba(77,166,255,0.25)",borderRadius:8,color:"#4da6ff",padding:"10px",fontSize:10,letterSpacing:2}}>
+                + ADD SEASON {form.seasons.length+1}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Step 2: Athletic */}
+        {step===2&&(
+          <div>
+            <div style={{fontSize:10,color:"#555",marginBottom:16}}>All athletic fields are optional. Leave blank if not available.</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 16px"}}>
+              {inp("Height (inches)","height","e.g. 71.0","number")}
+              {inp("Weight (lbs)","weight","e.g. 215","number")}
+              {inp("40-Yd Dash","forty","e.g. 4.40","number")}
+              {inp("10-Yd Split","ten_split","e.g. 1.54","number")}
+              {inp("Vertical (in)","vert","e.g. 38.5","number")}
+              {inp("Broad Jump (in)","broad","e.g. 125","number")}
+              {inp("3-Cone (sec)","three_cone","e.g. 7.05","number")}
+              {inp("Shuttle (sec)","shuttle","e.g. 4.25","number")}
+              {inp("Arm Length (in)","arm","e.g. 31.5","number")}
+              {inp("Hand Size (in)","hand","e.g. 9.5","number")}
+              {inp("Wingspan (in)","wing","e.g. 74.0","number")}
+            </div>
+            {inp("PFF Big Board Grade (0–100)","pff_grade","e.g. 85","number")}
+          </div>
+        )}
+
+        {/* Step 3: NFL Outcomes (optional) */}
+        {step===3&&(
+          <div>
+            <div style={{fontSize:10,color:"#555",marginBottom:16}}>Optional — fill in if this player has NFL data you want to track.</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
+              {inp("Best Fantasy Rank","nfl_best","e.g. 4","number")}
+              {inp("Avg Fantasy Rank","nfl_avg","e.g. 8.5","number")}
+              {inp("Top-12 Finishes","nfl_top12","e.g. 3","number")}
+              {inp("Top-24 Finishes","nfl_top24","e.g. 5","number")}
+              {inp("NFL Seasons Played","nfl_seasons","e.g. 4","number")}
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Review */}
+        {/* Step 4: Recruiting */}
+        {step===4&&(
+          <div>
+            <div style={{fontSize:10,color:"#555",marginBottom:16}}>Enter the player&#39;s recruiting profile. All fields are optional.</div>
+            <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10,padding:"16px",marginBottom:14}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#f0c040",marginBottom:14}}>RECRUIT RANKING</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"0 14px"}}>
+                {/* Star rating */}
+                <div style={{marginBottom:10}}>
+                  <label style={{fontSize:9,color:"#444",letterSpacing:1,display:"block",marginBottom:4}}>STAR RATING (0–5)</label>
+                  <div style={{display:"flex",gap:6}}>
+                    {[0,1,2,3,4,5].map(n=>(
+                      <button key={n} onMouseDown={e=>{e.preventDefault();set("recruit_stars",String(n));}}
+                        style={{flex:1,padding:"6px 0",borderRadius:6,border:"1px solid "+(String(form.recruit_stars)===String(n)?"rgba(240,192,64,0.6)":"rgba(255,255,255,0.1)"),background:String(form.recruit_stars)===String(n)?"rgba(240,192,64,0.15)":"rgba(255,255,255,0.03)",color:String(form.recruit_stars)===String(n)?"#f0c040":"#555",fontSize:10,cursor:"pointer",fontFamily:"monospace"}}>
+                        {n===0?"☆":n+"★"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {inp("Recruit Rating (1–100)","recruit_rating","e.g. 92","number")}
+                {inp("National Rank","recruit_nat","e.g. 15","number")}
+                {inp("Position Rank (RB)","recruit_pos","e.g. 3","number")}
+                {inp("State Rank","recruit_state","e.g. 2","number")}
+                {inp("Enrollment Year","recruit_year","e.g. 2021","number")}
+              </div>
+              {/* Committed school — typeahead */}
+              <div style={{marginBottom:10,position:"relative"}}>
+                <label style={{fontSize:9,color:"#444",letterSpacing:1,display:"block",marginBottom:4}}>COMMITTED TO</label>
+                {(()=>{
+                  const allTeams=[...new Set(Object.values(SOS_LOOKUP).flat().map(t=>t.team))].sort();
+                  allTeams.push("Other (FCS/Lower)");
+                  const rv=form.recruit_school||"";
+                  const rvLow=rv.toLowerCase();
+                  const rcSugg=rv.length>=1&&rcOpen?allTeams.filter(t=>t.toLowerCase().includes(rvLow)).slice(0,8):[];
+                  return(<>
+                    <input type="text" value={rv}
+                      onChange={e=>{set("recruit_school",e.target.value);setRcOpen(true);}}
+                      onFocus={()=>setRcOpen(true)}
+                      onBlur={()=>setTimeout(()=>setRcOpen(false),150)}
+                      placeholder="Start typing school name..."
+                      autoComplete="off"
+                      style={{width:"100%",boxSizing:"border-box",background:"#0d1421",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#ccc",padding:"7px 11px",fontSize:11,fontFamily:"monospace",outline:"none"}}/>
+                    {rcSugg.length>0&&(
+                      <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#131a24",border:"1px solid rgba(255,255,255,0.12)",borderRadius:"0 0 7px 7px",zIndex:50,maxHeight:200,overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,0.5)"}}>
+                        {rcSugg.map(t=>(
+                          <div key={t} onMouseDown={e=>{e.preventDefault();set("recruit_school",t);setRcOpen(false);}}
+                            style={{padding:"7px 12px",fontSize:11,color:t==="Other (FCS/Lower)"?"#f0873a":"#ccc",cursor:"pointer",borderBottom:"1px solid rgba(255,255,255,0.04)",fontFamily:"monospace"}}
+                            onMouseEnter={e=>e.currentTarget.style.background="rgba(240,192,64,0.08)"}
+                            onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                            {(()=>{const i=t.toLowerCase().indexOf(rvLow);if(i<0||!rvLow)return t;return<>{t.slice(0,i)}<span style={{color:"#f0c040",fontWeight:700}}>{t.slice(i,i+rv.length)}</span>{t.slice(i+rv.length)}</>;})()}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>);
+                })()}
+              </div>
+              {/* Transfer info */}
+              <div style={{marginTop:8,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.06)"}}>
+                <div style={{fontSize:9,color:"#555",letterSpacing:2,marginBottom:10}}>TRANSFER (if applicable)</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 14px"}}>
+                  <div style={{marginBottom:10,position:"relative"}}>
+                    <label style={{fontSize:9,color:"#444",letterSpacing:1,display:"block",marginBottom:4}}>TRANSFERRED TO</label>
+                    {(()=>{
+                      const allTeams2=[...new Set(Object.values(SOS_LOOKUP).flat().map(t=>t.team))].sort();
+                      allTeams2.push("Other (FCS/Lower)");
+                      const tv=form.transfer_to||"";
+                      const tvLow=tv.toLowerCase();
+                      const trSugg=tv.length>=1&&trOpen?allTeams2.filter(t=>t.toLowerCase().includes(tvLow)).slice(0,8):[];
+                      return(<>
+                        <input type="text" value={tv}
+                          onChange={e=>{set("transfer_to",e.target.value);setTrOpen(true);}}
+                          onFocus={()=>setTrOpen(true)}
+                          onBlur={()=>setTimeout(()=>setTrOpen(false),150)}
+                          placeholder="Start typing..."
+                          autoComplete="off"
+                          style={{width:"100%",boxSizing:"border-box",background:"#0d1421",border:"1px solid rgba(255,255,255,0.08)",borderRadius:6,color:"#ccc",padding:"7px 11px",fontSize:11,fontFamily:"monospace",outline:"none"}}/>
+                        {trSugg.length>0&&(
+                          <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#131a24",border:"1px solid rgba(255,255,255,0.12)",borderRadius:"0 0 7px 7px",zIndex:50,maxHeight:160,overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,0.5)"}}>
+                            {trSugg.map(t=>(
+                              <div key={t} onMouseDown={e=>{e.preventDefault();set("transfer_to",t);setTrOpen(false);}}
+                                style={{padding:"7px 12px",fontSize:11,color:t==="Other (FCS/Lower)"?"#f0873a":"#ccc",cursor:"pointer",borderBottom:"1px solid rgba(255,255,255,0.04)",fontFamily:"monospace"}}
+                                onMouseEnter={e=>e.currentTarget.style.background="rgba(240,192,64,0.08)"}
+                                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                                {t}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>);
+                    })()}
+                  </div>
+                  {inp("Transfer Year","transfer_year","e.g. 2023","number")}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 5: Review */}
+        {step===5&&previewScore&&(
+          <div>
+            <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10,padding:"20px",marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div>
+                  <div style={{fontSize:22,fontWeight:900,color:"#fff",marginBottom:4}}>{form.name||"—"}</div>
+                  <div style={{fontSize:11,color:"#555"}}>{form.school} · {form.conference} · {form.draft_class} class</div>
+                  <div style={{fontSize:10,color:"#555",marginTop:2}}>{autoArchetype(form).rush_arch} · {autoArchetype(form).recv_arch} <span style={{color:"#444"}}>(auto-assigned)</span></div>
+                  {(form.draft_round)&&<div style={{fontSize:10,color:"#f0c040",marginTop:4}}>Rd {form.draft_round}{form.draft_pick?" · Pick #"+form.draft_pick:""}</div>}
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:48,fontWeight:900,color:(TIER_STYLE[previewScore.tier]||TIER_STYLE.Fringe).accent,lineHeight:1}}>{previewScore.prospect_score}</div>
+                  <div style={{fontSize:9,color:"#444",letterSpacing:2}}>PROSPECT SCORE</div>
+                  <div style={{fontSize:12,fontWeight:700,color:(TIER_STYLE[previewScore.tier]||TIER_STYLE.Fringe).accent,marginTop:4}}>{previewScore.tier}</div>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginTop:16}}>
+                {[["PRODUCTION",previewScore.prod_trajectory,"#f0873a"],["ATHLETIC",previewScore.athl_score,"#4da6ff"],["PFF GRADE",previewScore.pff_score,"#5dbf6a"]].map(([lbl,val,c])=>(
+                  <div key={lbl} style={{background:"rgba(255,255,255,0.04)",borderRadius:7,padding:"10px 12px",textAlign:"center"}}>
+                    <div style={{fontSize:8,color:"#444",letterSpacing:1,marginBottom:4}}>{lbl}</div>
+                    <div style={{fontSize:20,fontWeight:800,color:c}}>{val!=null?val.toFixed(1):"—"}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{fontSize:10,color:"#555",marginBottom:16,padding:"10px 14px",background:"rgba(240,192,64,0.05)",border:"1px solid rgba(240,192,64,0.12)",borderRadius:8}}>
+              <strong style={{color:"#f0c04088"}}>Note:</strong> Scores are estimated from the data you entered. The model uses simplified calculations for manually added players — percentile bars in the Seasons tab will show raw values only (no historical percentiles available for custom entries). Athletic ranks will show N/A since composite scores require the full dataset.
+            </div>
+          </div>
+        )}
+
+        {/* Nav buttons */}
+        <div style={{display:"flex",justifyContent:"space-between",marginTop:20,paddingTop:16,borderTop:"1px solid rgba(255,255,255,0.06)"}}>
+          <button onClick={step===0?onClose:back}
+            style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.10)",borderRadius:8,color:"#666",padding:"9px 20px",fontSize:10,letterSpacing:1}}>
+            {step===0?"CANCEL":"← BACK"}
+          </button>
+          {step<5
+            ? <button onClick={next} style={{background:"rgba(240,192,64,0.12)",border:"1px solid rgba(240,192,64,0.35)",borderRadius:8,color:"#f0c040",padding:"9px 20px",fontSize:10,letterSpacing:1,fontWeight:700}}>
+                NEXT →
+              </button>
+            : <button onClick={handleSave} style={{background:"rgba(93,191,106,0.15)",border:"1px solid rgba(93,191,106,0.4)",borderRadius:8,color:"#5dbf6a",padding:"9px 24px",fontSize:11,letterSpacing:1,fontWeight:700}}>
+                ✓ ADD PLAYER
+              </button>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function IdealBuildPage({onOpenPlayer}) {
+  const IDEALS = {
+    height:     {val:70.99,  unit:"in",  label:"Height",       note:"5′ 11″ — balance of vision and power"},
+    weight:     {val:217.34, unit:"lbs", label:"Weight",       note:"Power without sacrificing speed"},
+    arm:        {val:31.21,  unit:"in",  label:"Arm Length",   note:"Reach for tackles, ball security"},
+    hand:       {val:9.47,   unit:"in",  label:"Hand Size",    note:"Ball control, fumble resistance"},
+    wing:       {val:74.889, unit:"in",  label:"Wingspan",     note:"Extended reach on cuts and catches"},
+    forty:      {val:4.51,   unit:"sec", label:"40-Yard Dash", note:"Elite speed without sacrificing power"},
+    ten_split:  {val:1.56,   unit:"sec", label:"10-Yd Split",  note:"Explosive first step out of gaps"},
+    vert:       {val:35.41,  unit:"in",  label:"Vertical",     note:"Lower-body explosion and burst"},
+    broad:      {val:122.36, unit:"in",  label:"Broad Jump",   note:"Horizontal power and stride length"},
+    three_cone: {val:7.12,   unit:"sec", label:"3-Cone Drill", note:"Change-of-direction and agility"},
+    shuttle:    {val:4.33,   unit:"sec", label:"Shuttle",      note:"Lateral quickness and hip flexibility"},
+  };
+  const STDEVS = {height:1.71,weight:15.11,arm:0.99,hand:0.39,wing:2.206,forty:0.052,ten_split:0.038,vert:3.2,broad:7.0,three_cone:0.22,shuttle:0.16};
+
+  // Compute top 10 closest to ideal
+  const idealRanked = useMemo(()=>{
+    const scored = Object.entries(ALL_PLAYERS).map(([name,p])=>{
+      const athl = p.athletic||{};
+      let total=0, ws=0;
+      Object.entries(IDEALS).forEach(([m,info])=>{
+        const val = athl[m]?.val;
+        if(val==null) return;
+        const z = Math.abs(val-info.val)/(STDEVS[m]||1);
+        ws += Math.max(0,100-(z/3)*100);
+        total++;
+      });
+      return {name, score: total>=6 ? Math.round((ws/total)*10)/10 : 0, p};
+    }).filter(x=>x.score>0);
+    scored.sort((a,b)=>b.score-a.score);
+    return scored.slice(0,10);
+  },[]);
+
+  const METRIC_GROUPS = [
+    {title:"Body Profile",   keys:["height","weight","arm","hand","wing"]},
+    {title:"Speed & Burst",  keys:["forty","ten_split","vert","broad"]},
+    {title:"Agility",        keys:["three_cone","shuttle"]},
+  ];
+
+  return (
+    <div style={{maxWidth:960,margin:"0 auto",padding:"20px 10px 60px",fontFamily:"monospace"}}>
+      <div style={{marginBottom:24}}>
+        <div style={{fontSize:9,color:"#333",letterSpacing:4,marginBottom:4}}>POSITIONAL STANDARDS</div>
+        <div style={{fontSize:20,fontWeight:800,color:"#fff",marginBottom:6}}>
+          The <span style={{color:"#f0c040"}}>Ideal</span> Running Back
+        </div>
+        <div style={{fontSize:10,color:"#555",maxWidth:580,lineHeight:1.6}}>
+          Derived from composite scouting standards across draft classes, these measurements define the optimal athletic profile for an NFL running back. Rankings on each player's Athletic tab reflect closeness to these targets — not raw size or speed.
+        </div>
+      </div>
+
+      <div style={{display:"flex",gap:20,flexWrap:"wrap",alignItems:"flex-start"}}>
+
+        {/* Left: Vitruvian-style figure */}
+        <div style={{flexShrink:0,width:200}}>
+          <svg viewBox="0 0 200 380" width="200" height="380" style={{display:"block",margin:"0 auto"}}>
+            <defs>
+              <radialGradient id="outBg" cx="50%" cy="38%" r="55%">
+                <stop offset="0%" stopColor="#f0c04006"/>
+                <stop offset="100%" stopColor="transparent"/>
+              </radialGradient>
+            </defs>
+            <rect width="200" height="380" fill="url(#outBg)"/>
+
+            {/* Vitruvian proportion circles */}
+            <circle cx="100" cy="185" r="110" fill="none" stroke="rgba(240,192,64,0.07)" strokeWidth="1" strokeDasharray="4,8"/>
+            <line x1="5"  x2="195" y1="185" y2="185" stroke="rgba(240,192,64,0.05)" strokeWidth="1"/>
+            <line x1="100" x2="100" y1="30" y2="370" stroke="rgba(240,192,64,0.05)" strokeWidth="1"/>
+
+            {/* ─── OUTLINE FIGURE — single path, no fill, stroke only ─── */}
+            {/* All measurements tuned to match the reference silhouette proportions */}
+
+            {/* HEAD */}
+            <ellipse cx="100" cy="46" rx="16" ry="19"
+              fill="none" stroke="#f0c040" strokeWidth="2" opacity="0.90"/>
+
+            {/* NECK */}
+            <path fill="none" stroke="#f0c040" strokeWidth="2" opacity="0.85" d="
+              M93,64 L93,74 L107,74 L107,64
+            "/>
+
+            {/* SHOULDERS + ARMS horizontal */}
+            {/* Left shoulder sweep */}
+            <path fill="none" stroke="#f0c040" strokeWidth="2" opacity="0.85" d="
+              M93,74
+              C85,74 72,76 58,80
+              C44,84 20,90 8,92
+            "/>
+            {/* Left arm underside */}
+            <path fill="none" stroke="#f0c040" strokeWidth="2" opacity="0.85" d="
+              M93,82
+              C82,83 68,86 54,90
+              C40,94 20,97 8,98
+            "/>
+            {/* Left hand outline */}
+            <path fill="none" stroke="#f0c040" strokeWidth="1.6" opacity="0.80" d="
+              M8,92 C4,92 2,93 2,95 C2,97 4,98 8,98
+            "/>
+
+            {/* Right shoulder sweep */}
+            <path fill="none" stroke="#f0c040" strokeWidth="2" opacity="0.85" d="
+              M107,74
+              C115,74 128,76 142,80
+              C156,84 180,90 192,92
+            "/>
+            {/* Right arm underside */}
+            <path fill="none" stroke="#f0c040" strokeWidth="2" opacity="0.85" d="
+              M107,82
+              C118,83 132,86 146,90
+              C160,94 180,97 192,98
+            "/>
+            {/* Right hand outline */}
+            <path fill="none" stroke="#f0c040" strokeWidth="1.6" opacity="0.80" d="
+              M192,92 C196,92 198,93 198,95 C198,97 196,98 192,98
+            "/>
+
+            {/* TORSO — chest taper to waist */}
+            {/* Left side */}
+            <path fill="none" stroke="#f0c040" strokeWidth="2" opacity="0.85" d="
+              M88,74
+              C82,80 78,92 78,106
+              C78,118 80,128 80,140
+              C78,152 74,164 72,178
+            "/>
+            {/* Right side */}
+            <path fill="none" stroke="#f0c040" strokeWidth="2" opacity="0.85" d="
+              M112,74
+              C118,80 122,92 122,106
+              C122,118 120,128 120,140
+              C122,152 126,164 128,178
+            "/>
+            {/* Chest top line */}
+            <path fill="none" stroke="#f0c040" strokeWidth="1.5" opacity="0.55" d="
+              M88,74 Q100,80 112,74
+            "/>
+
+            {/* PELVIS / HIPS */}
+            <path fill="none" stroke="#f0c040" strokeWidth="2" opacity="0.85" d="
+              M72,178 Q78,196 86,202 Q100,208 114,202 Q122,196 128,178
+            "/>
+
+            {/* LEFT LEG */}
+            {/* Outer thigh */}
+            <path fill="none" stroke="#f0c040" strokeWidth="2" opacity="0.85" d="
+              M84,204
+              C80,218 76,234 76,252
+              C76,268 78,280 80,292
+            "/>
+            {/* Inner thigh */}
+            <path fill="none" stroke="#f0c040" strokeWidth="2" opacity="0.85" d="
+              M96,206
+              C94,222 92,238 92,256
+              C92,270 93,282 94,292
+            "/>
+            {/* Left knee */}
+            <path fill="none" stroke="#f0c040" strokeWidth="1.8" opacity="0.80" d="
+              M80,292 Q84,300 87,302 Q91,304 94,302 Q97,300 98,292
+            "/>
+            {/* Left lower leg outer */}
+            <path fill="none" stroke="#f0c040" strokeWidth="1.8" opacity="0.80" d="
+              M80,292 C78,308 78,324 80,340 C82,350 84,356 86,360
+            "/>
+            {/* Left lower leg inner */}
+            <path fill="none" stroke="#f0c040" strokeWidth="1.8" opacity="0.80" d="
+              M98,292 C98,308 97,324 96,340 C95,350 93,356 92,360
+            "/>
+            {/* Left foot */}
+            <path fill="none" stroke="#f0c040" strokeWidth="1.6" opacity="0.78" d="
+              M80,358 C78,362 78,366 82,368 C86,370 94,370 100,366 C104,362 103,358 98,358
+            "/>
+
+            {/* RIGHT LEG */}
+            <path fill="none" stroke="#f0c040" strokeWidth="2" opacity="0.85" d="
+              M116,204
+              C120,218 124,234 124,252
+              C124,268 122,280 120,292
+            "/>
+            <path fill="none" stroke="#f0c040" strokeWidth="2" opacity="0.85" d="
+              M104,206
+              C106,222 108,238 108,256
+              C108,270 107,282 106,292
+            "/>
+            <path fill="none" stroke="#f0c040" strokeWidth="1.8" opacity="0.80" d="
+              M120,292 Q116,300 113,302 Q109,304 106,302 Q103,300 102,292
+            "/>
+            <path fill="none" stroke="#f0c040" strokeWidth="1.8" opacity="0.80" d="
+              M120,292 C122,308 122,324 120,340 C118,350 116,356 114,360
+            "/>
+            <path fill="none" stroke="#f0c040" strokeWidth="1.8" opacity="0.80" d="
+              M102,292 C102,308 103,324 104,340 C105,350 107,356 108,360
+            "/>
+            <path fill="none" stroke="#f0c040" strokeWidth="1.6" opacity="0.78" d="
+              M120,358 C122,362 122,366 118,368 C114,370 106,370 100,366 C96,362 97,358 102,358
+            "/>
+
+            {/* ─── ANNOTATIONS ─── */}
+            <line x1="14" y1="28"  x2="14" y2="368" stroke="rgba(240,192,64,0.18)" strokeWidth="1"/>
+            <line x1="10" y1="28"  x2="18" y2="28"  stroke="rgba(240,192,64,0.18)" strokeWidth="1"/>
+            <line x1="10" y1="368" x2="18" y2="368" stroke="rgba(240,192,64,0.18)" strokeWidth="1"/>
+            <text x="9" y="202" fill="#f0c040" fontSize="7.5" fontFamily="monospace" textAnchor="middle" transform="rotate(-90,9,202)" opacity="0.65">70.99″</text>
+
+            <line x1="2"   y1="105" x2="198" y2="105" stroke="rgba(77,166,255,0.18)" strokeWidth="1"/>
+            <line x1="2"   y1="101" x2="2"   y2="109" stroke="rgba(77,166,255,0.18)" strokeWidth="1"/>
+            <line x1="198" y1="101" x2="198" y2="109" stroke="rgba(77,166,255,0.18)" strokeWidth="1"/>
+            <text x="100" y="117" fill="#4da6ff" fontSize="7.5" fontFamily="monospace" textAnchor="middle" opacity="0.68">wing 74.9″</text>
+
+            <text x="100" y="378" fill="#777" fontSize="8" fontFamily="monospace" textAnchor="middle">217 lbs</text>
+          </svg>
+        </div>
+
+        {/* Right: metric cards */}
+        <div style={{flex:1,minWidth:280}}>
+          {METRIC_GROUPS.map(({title,keys})=>(
+            <div key={title} style={{marginBottom:16}}>
+              <div style={{fontSize:12,color:"#666",letterSpacing:2,marginBottom:10,fontWeight:600}}>{title.toUpperCase()}</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:6}}>
+                {keys.map(k=>{
+                  const info=IDEALS[k];
+                  return (
+                    <div key={k} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(240,192,64,0.12)",borderRadius:8,padding:"10px 12px"}}>
+                      <div style={{fontSize:8,color:"#555",letterSpacing:1,marginBottom:4}}>{info.label.toUpperCase()}</div>
+                      <div style={{fontSize:20,fontWeight:800,color:"#f0c040",lineHeight:1}}>
+                        {info.val} <span style={{fontSize:9,color:"#555",fontWeight:400}}>{info.unit}</span>
+                      </div>
+                      <div style={{fontSize:11,color:"#555",marginTop:6,lineHeight:1.45}}>{info.note}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Top 10 closest to ideal */}
+      <div style={{marginTop:28}}>
+        <div style={{fontSize:9,color:"#333",letterSpacing:4,marginBottom:12}}>TOP 10 · CLOSEST TO IDEAL BUILD</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:8}}>
+          {idealRanked.map(({name,score,p},i)=>{
+            const ts=TIER_STYLE[p.tier]||TIER_STYLE.Fringe;
+            return (
+              <div key={name} onClick={()=>onOpenPlayer(name)}
+                style={{display:"flex",alignItems:"center",gap:10,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(240,192,64,0.10)",borderRadius:8,padding:"10px 14px",cursor:"pointer",transition:"background 0.15s"}}
+                onMouseEnter={e=>e.currentTarget.style.background="rgba(240,192,64,0.06)"}
+                onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}>
+                <div style={{fontSize:22,fontWeight:900,color:"rgba(240,192,64,0.25)",minWidth:32,textAlign:"center"}}>#{i+1}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{name}</div>
+                  <div style={{fontSize:13,color:"#666",marginTop:3}}>{p.draft_class} · {p.tier}</div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{fontSize:16,color:"#f0c040",fontWeight:700}}>{score.toFixed(1)}<span style={{fontSize:11,color:"#555",marginLeft:4}}>IDEAL FIT</span></div>
+                  <div style={{fontSize:15,color:ts.accent,marginTop:3}}>{p.prospect_score.toFixed(1)}<span style={{fontSize:11,color:"#555",marginLeft:4}}>PROSP</span></div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [query,setQuery]       = useState("");
+  const [selected,setSelected] = useState(null);
+  const [showVal,setShowVal]   = useState(false);
+  const [suggestions,setSugg]  = useState([]);
+  const [tierFilter,setTier]   = useState(null);
+  const [classFilter,setClass] = useState(null);
+  const [page,setPage]         = useState("prospects"); // "prospects" | "archetypes" | "idealbuild"
+  const [rushArchFilter,setRushArch] = useState(null);
+  const [recvArchFilter,setRecvArch] = useState(null);
+  const [trajFilter,setTrajFilter]   = useState(null);
+  const [roundFilter,setRoundFilter] = useState(null);
+  const [sortBy,setSortBy]           = useState(null);      // null | "consistency" | "improvement"
+  const [sortDir,setSortDir]         = useState("desc");    // "asc" | "desc"
+  const [showAdd,setShowAdd]         = useState(false);
+  const [customPlayers,setCustom]    = useState({});
+  const [customSeasons,setCustomSS]  = useState({});
+  const [customSoS,setCustomSoS]     = useState({}); // {year: {teamName: {rank, mag, label}}}
+  const [showSoS,setShowSoS]         = useState(false);
+  const [passcodeGate,setPasscodeGate] = useState(null); // null | 'add' | 'sos'
+  const [adminUnlocked,setAdminUnlocked] = useState(false);
+
+  const ALL_DATA = useMemo(()=>({...ALL_PLAYERS,...customPlayers}),[customPlayers]);
+
+  const allNames = useMemo(()=>Object.keys(ALL_DATA).sort((a,b)=>ALL_DATA[a].rank-ALL_DATA[b].rank),[ALL_DATA]);
+  const draftClasses = useMemo(()=>[...new Set(allNames.map(n=>ALL_DATA[n].draft_class).filter(Boolean))].sort((a,b)=>Number(a)-Number(b)),[allNames]);
+
+  useEffect(()=>{
+    if(query.length<2){setSugg([]);return;}
+    const q=query.toLowerCase();
+    setSugg(allNames.filter(n=>n.toLowerCase().includes(q)).slice(0,8));
+  },[query]);
+
+  const open=name=>{setSelected(name);setQuery("");setSugg([]);};
+
+  const tierCounts = ["Elite","Starter","Rotational","Developmental","Fringe"].map(t=>({
+    tier:t,count:allNames.filter(n=>ALL_DATA[n].tier===t&&(!classFilter||ALL_DATA[n].draft_class===classFilter)).length
+  }));
+
+  const display = useMemo(()=>{
+    let names = allNames;
+    if (classFilter)    names = names.filter(n=>ALL_DATA[n].draft_class===classFilter);
+    if (tierFilter)     names = names.filter(n=>ALL_DATA[n].tier===tierFilter);
+    if (rushArchFilter) names = names.filter(n=>ALL_DATA[n].rush_arch===rushArchFilter);
+    if (recvArchFilter) names = names.filter(n=>ALL_DATA[n].recv_arch===recvArchFilter);
+    if (roundFilter)    names = names.filter(n=>String(ALL_DATA[n].draft_round)===String(roundFilter));
+    if (trajFilter==="breakout")     names = names.filter(n=>ALL_DATA[n].breakout_tag===true);
+    if (trajFilter==="late_decline") names = names.filter(n=>ALL_DATA[n].late_decline===true);
+    if (!tierFilter&&!classFilter&&!rushArchFilter&&!recvArchFilter&&!trajFilter&&!sortBy&&!roundFilter) names = names.slice(0,20);
+    if (sortBy) {
+      const invertSort = sortBy==="draft_round"||sortBy==="draft_pick";
+      const key = sortBy==="consistency" ? "traj_consistency" : sortBy==="improvement" ? "traj_improvement" : sortBy==="rush_trajectory" ? "rush_trajectory" : sortBy==="recv_trajectory" ? "recv_trajectory" : sortBy==="proj_t12" ? "proj_t12" : sortBy==="proj_t24" ? "proj_t24" : sortBy==="athl_score" ? "athl_score" : sortBy==="draft_round" ? "draft_round" : "draft_pick";
+      names = [...names].sort((a,b)=>{
+        const va = ALL_DATA[a][key]??99999, vb = ALL_DATA[b][key]??99999;
+        const dir = invertSort ? (sortDir==="desc" ? 1 : -1) : (sortDir==="desc" ? -1 : 1);
+        return (va-vb)*dir;
+      });
+    }
+    return names;
+  },[allNames,tierFilter,classFilter,rushArchFilter,recvArchFilter,trajFilter,roundFilter,sortBy,sortDir]);
+
+  const handleArchFilter = (side,key) => {
+    if (side==="rush") { setRushArch(key); setRecvArch(null); }
+    else               { setRecvArch(key); setRushArch(null); }
+    setPage("prospects");
+  };
+  const openPlayer = name => { setSelected(name); setQuery(""); setSugg([]); };
+
+  const exportData = () => {
+    const custom = Object.entries(customPlayers);
+    if (!custom.length) { alert("No custom players to export yet."); return; }
+    const exportObj = {
+      version: "rbscout_v6_custom",
+      exported: new Date().toISOString(),
+      players: customPlayers,
+      seasons: customSeasons
+    };
+    const blob = new Blob([JSON.stringify(exportObj, null, 2)], {type:"application/json"});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url;
+    a.download = "rbscout_custom_players_" + new Date().toISOString().slice(0,10) + ".json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importData = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const obj = JSON.parse(ev.target.result);
+        if (obj.version !== "rbscout_v6_custom") { alert("Unrecognized file format."); return; }
+        setCustom(prev => ({...prev, ...obj.players}));
+        const merged = {...(_customSS||{}), ...obj.seasons};
+        _customSS = merged;
+        setCustomSS(merged);
+        alert("Imported " + Object.keys(obj.players).length + " player(s) successfully.");
+      } catch(e) { alert("Could not parse file."); }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  return (
+    <div style={{minHeight:"100vh",background:"#06080f",color:"#fff",fontFamily:"monospace"}}>
+      {/* Header */}
+      <div style={{background:"linear-gradient(180deg,#0a0f1c,#06080f)",borderBottom:"1px solid rgba(255,255,255,0.05)",padding:"14px 14px 12px"}}>
+        <div style={{maxWidth:960,margin:"0 auto"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,gap:8,flexWrap:"wrap"}}>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:8,color:"#333",letterSpacing:3,marginBottom:3}}>COLLEGE RB PROSPECT MODEL · V6</div>
+              <div style={{fontSize:22,fontWeight:900,letterSpacing:-1}}>RB <span style={{color:"#f0c040"}}>Scout</span></div>
+              <div style={{fontSize:9,color:"#444",marginTop:1}}>{Object.keys(ALL_DATA).length} prospects · 2017–2026 · Prod 75% · Athl 10% · PFF 15%</div>
+            </div>
+            <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end",flexShrink:0}}>
+              <button onClick={()=>setShowVal(true)} style={{background:"rgba(240,192,64,0.08)",border:"1px solid rgba(240,192,64,0.3)",color:"#f0c040",padding:"6px 10px",borderRadius:7,fontSize:8,letterSpacing:1.5}}>
+                VALIDATE ↗
+              </button>
+              <button onClick={()=>adminUnlocked?setShowAdd(true):setPasscodeGate("add")} style={{background:"rgba(93,191,106,0.10)",border:"1px solid rgba(93,191,106,0.35)",color:"#5dbf6a",padding:"6px 10px",borderRadius:7,fontSize:8,letterSpacing:1.5,fontWeight:700}}>
+                + ADD
+              </button>
+              {Object.keys(customPlayers).length>0&&(
+                <button onClick={exportData} style={{background:"rgba(77,166,255,0.10)",border:"1px solid rgba(77,166,255,0.30)",color:"#4da6ff",padding:"6px 10px",borderRadius:7,fontSize:8,letterSpacing:1.5,fontWeight:700}}>
+                  ↓ EXPORT
+                </button>
+              )}
+              <label style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.12)",color:"#666",padding:"6px 10px",borderRadius:7,fontSize:8,letterSpacing:1.5,cursor:"pointer"}}>
+                ↑ IMPORT
+                <input type="file" accept=".json" onChange={importData} style={{display:"none"}}/>
+              </label>
+              <button onClick={()=>adminUnlocked?setShowSoS(true):setPasscodeGate("sos")} style={{background:"rgba(77,166,255,0.08)",border:"1px solid rgba(77,166,255,0.25)",color:"#4da6ff",padding:"6px 10px",borderRadius:7,fontSize:8,letterSpacing:1.5,fontWeight:700}}>
+                SoS ↑
+              </button>
+            </div>
+          </div>
+          {/* Elevator pitch */}
+          <div style={{marginBottom:12,padding:"12px 14px",background:"rgba(255,255,255,0.02)",borderRadius:9,border:"1px solid rgba(255,255,255,0.06)"}}>
+            <div style={{fontSize:15,fontWeight:700,color:"#fff",marginBottom:5,letterSpacing:-0.2}}>The most data-driven college RB evaluation model available.</div>
+            <div style={{fontSize:13,color:"#777",lineHeight:1.7}}>              RB Scout grades every prospect across production trajectory, athletic testing, and PFF board scores — then validates each metric against real NFL outcomes from 166 drafted backs. Use it to cut through the noise of draft season, surface undervalued prospects, and understand exactly what college statistics actually predict success at the next level.
+            </div>
+          </div>
+
+          {/* Page nav */}
+          <div style={{display:"flex",gap:0,borderRadius:7,overflow:"hidden",border:"1px solid rgba(255,255,255,0.07)",width:"fit-content",marginBottom:10}}>
+            {[["prospects","Prospects"],["archetypes","Archetypes"],["idealbuild","Ideal Build"]].map(([p,lbl])=>(
+              <button key={p} onClick={()=>setPage(p)}
+                style={{padding:"7px 11px",border:"none",background:page===p?"rgba(240,192,64,0.12)":"transparent",color:page===p?"#f0c040":"#555",fontSize:8,letterSpacing:1,fontWeight:page===p?700:400,borderRight:p==="prospects"?"1px solid rgba(255,255,255,0.07)":"none"}}>
+                {lbl.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          {/* Search */}
+          {page==="prospects"&&<div style={{position:"relative",marginTop:2}}>
+            <input value={query} onChange={e=>setQuery(e.target.value)} placeholder={`Search ${Object.keys(ALL_DATA).length} players...`}
+              style={{width:"100%",padding:"10px 14px",borderRadius:8,boxSizing:"border-box",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.10)",color:"#fff",fontSize:14,outline:"none"}}/>
+            {suggestions.length>0&&(
+              <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,zIndex:200,background:"#111724",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,overflow:"hidden",boxShadow:"0 12px 40px r
