@@ -2347,7 +2347,54 @@ function NFLPanel({nfl, accent, isDraftClass, projT12, projT24, projT12Rank, pro
       </div>
     );
   }
-  if (!nfl) return <div style={{padding:"20px 0",color:"#444",fontSize:11,textAlign:"center"}}>No fantasy data available</div>;
+  const hasDraftData = !!(playerData?.draft_round && playerData.draft_round !== '' && playerData.draft_round !== 'UDFA') ||
+    !!(playerData?.draft_pick && playerData.draft_pick !== '');
+  if (!nfl && !hasDraftData) return <div style={{padding:"20px 0",color:"#444",fontSize:11,textAlign:"center"}}>No fantasy data available</div>;
+
+  if (hasDraftData && !nfl) {
+    return (
+      <div style={{padding:"10px 0"}}>
+        <div style={{fontSize:11,color:"#555",marginBottom:14}}>
+          <strong>Drafted {draftClass || "2025"}:</strong> No fantasy data available yet. Projections below based on scouting profile.
+        </div>
+        <div style={{display:"flex",gap:8,marginBottom:14}}>
+          {[["Draft Round",playerData.draft_round==="UDFA"?"UDFA":"Rd "+playerData.draft_round,"#00838f"],
+            ["Draft Pick",playerData.draft_pick==="UDFA"?"UDFA":"#"+playerData.draft_pick,"#aaa"]
+          ].map(([l,v,c])=>(
+            <div key={l} style={{flex:1,background:"rgba(255,255,255,0.04)",borderRadius:6,padding:"8px 12px",textAlign:"center"}}>
+              <div style={{fontSize:9,color:"#555",marginBottom:1}}>{l}</div>
+              <div style={{fontSize:16,fontWeight:800,color:c}}>{v}</div>
+            </div>
+          ))}
+        </div>
+        {(calibratedProjT12!=null||calibratedProjT24!=null)&&(
+          <div>
+            <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:8}}>PROJECTED HIT RATES</div>
+            <div style={{fontSize:11,color:"#555",lineHeight:1.65,marginBottom:10}}>
+              Based on historical outcomes of similarly-scored RBs with this profile (prospect score ±5, production ±5, athletic ±5, PFF board ±5) and draft capital. These percentages reflect the projected likelihood that the player hits top-12 or top-24 <em>in any season of their NFL career</em>.
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              {[[calibratedProjT12,projT12Rank,"TOP-12","#f0c040"],[calibratedProjT24,projT24Rank,"TOP-24","#5dbf6a"]].map(([val,rank,lbl,c])=>(
+                <div key={lbl} style={{flex:1,background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"12px 10px",textAlign:"center",border:"1px solid "+c+"22"}}>
+                  <div style={{fontSize:9,color:"#555",letterSpacing:1,marginBottom:4}}>{lbl} / SEASON</div>
+                  <div style={{fontSize:28,fontWeight:900,color:val>=40?"#f0c040":val>=20?"#5dbf6a":val>=10?"#4da6ff":"#888",lineHeight:1}}>
+                    {val!=null?val.toFixed(1)+"%":"—"}
+                  </div>
+                  <div style={{fontSize:9,color:"#555",marginTop:4}}>
+                    {rank!=null?"#"+rank+" of "+(totalPlayers||194)+" players":""}
+                  </div>
+                  <div style={{fontSize:9,color:"#444",marginTop:2}}>
+                    {val>=40?"Strong likelihood":val>=20?"Moderate likelihood":val>=10?"Below avg likelihood":"Low likelihood"}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {projectionMultiBlock}
+          </div>
+        )}
+      </div>
+    );
+  }
   const rc=r=>r<=3?"#f0c040":r<=12?"#5dbf6a":r<=24?"#4da6ff":"#888";
   return (
     <div>
