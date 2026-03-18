@@ -2,6 +2,19 @@ import React, { useState, useMemo } from "react";
 import { SEASON_SCORE_RANKS, STAT_LABELS, STAT_IDX, sosColor } from '../logic/scoring.jsx';
 import { ALL_PLAYERS_BASE, TIER_STYLE, RUSH_ARCH_COLORS, RECV_ARCH_COLORS, SEASON_STATS_BASE } from '../data/playersBase.js';
 
+function toOrdinal(value) {
+  const n = Math.round(Number(value) || 0);
+  const abs = Math.abs(n);
+  const mod100 = abs % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  switch (abs % 10) {
+    case 1: return `${n}st`;
+    case 2: return `${n}nd`;
+    case 3: return `${n}rd`;
+    default: return `${n}th`;
+  }
+}
+
 export function ArchTag({label, colors}) {
   const color = colors[label] || "#888";
   return <span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,marginRight:4,marginBottom:3,fontSize:9,fontWeight:700,letterSpacing:1,background:color+"18",border:"1px solid "+color+"55",color}}>{label}</span>;
@@ -116,7 +129,7 @@ export function PctBar({pct, inverted=false}) {
       <div style={{width:56,height:11,borderRadius:4,background:"rgba(255,255,255,0.07)",flexShrink:0}}>
         <div style={{height:"100%",width:display+"%",background:c,borderRadius:4}}/>
       </div>
-      <span style={{fontSize:11,color:c,fontWeight:700,minWidth:28}}>{Math.round(display)}th</span>
+      <span style={{fontSize:11,color:c,fontWeight:700,minWidth:28}}>{toOrdinal(display)}</span>
     </div>
   );
 }

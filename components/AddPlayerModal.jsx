@@ -13,7 +13,20 @@ function AddPlayerModal({onClose, onAdd, existingPlayers, sosByYear={}}) {
 
   const set = (key, val) => setForm(f => ({...f, [key]: val}));
   const setSeason = (idx, key, val) => setForm(f => {
-    const seasons = f.seasons.map((s,i) => i===idx ? {...s, [key]:val} : s);
+    const statKeys = ['attempts', 'rush_yds', 'ypa', 'rush_tds', 'run_grade', 'yco_a', 'mtf_a', 'ydom', 'tddom', 'targets', 'receptions', 'rec_yds', 'yds_per_rec', 'rec_tds', 'recv_grade', 'yac_rec', 'mtf_rec'];
+    const shouldClearScores = statKeys.includes(key);
+    const seasons = f.seasons.map((s,i) => {
+      if (i === idx) {
+        const updated = {...s, [key]:val};
+        if (shouldClearScores) {
+          updated.rush_score = '';
+          updated.recv_score = '';
+          updated.adj_score = '';
+        }
+        return updated;
+      }
+      return s;
+    });
     return {...f, seasons};
   });
   const addSeason = () => {

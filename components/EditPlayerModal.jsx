@@ -37,6 +37,9 @@ function seasonToForm(season = {}, row = []) {
     recv_grade: getStat(row, 21),
     yac_rec: getStat(row, 23),
     mtf_rec: getStat(row, 26),
+    rush_score: season.rush_score ?? season.r ?? '',
+    recv_score: season.recv_score ?? season.v ?? '',
+    adj_score: season.adj_score ?? season.c ?? '',
   };
 }
 
@@ -144,9 +147,23 @@ export default function EditPlayerModal({
   };
 
   const setSeason = (idx, key, value) => {
+    const statKeys = ['attempts', 'rush_yds', 'ypa', 'rush_tds', 'run_grade', 'yco_a', 'mtf_a', 'ydom', 'tddom', 'targets', 'receptions', 'rec_yds', 'yds_per_rec', 'rec_tds', 'recv_grade', 'yac_rec', 'mtf_rec'];
+    const shouldClearScores = statKeys.includes(key);
+    
     setDraft((prev) => ({
       ...prev,
-      seasons: prev.seasons.map((s, i) => (i === idx ? { ...s, [key]: value } : s)),
+      seasons: prev.seasons.map((s, i) => {
+        if (i === idx) {
+          const updated = { ...s, [key]: value };
+          if (shouldClearScores) {
+            updated.rush_score = '';
+            updated.recv_score = '';
+            updated.adj_score = '';
+          }
+          return updated;
+        }
+        return s;
+      }),
     }));
   };
 
