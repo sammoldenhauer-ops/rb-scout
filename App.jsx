@@ -2,6 +2,15 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { ALL_PLAYERS_BASE } from "./data/playersBase.js";
 
 // ─── EMBEDDED DATA ──────────────────────────────────────────────────────────
+const TIER_VAL_BASE = {
+  Elite: { accent: "#f0c040", bg: "#f0c04014", border: "#f0c04055" },
+  Starter: { accent: "#5dbf6a", bg: "#5dbf6a14", border: "#5dbf6a55" },
+  Rotational: { accent: "#4da6ff", bg: "#4da6ff14", border: "#4da6ff55" },
+  Developmental: { accent: "#c084fc", bg: "#c084fc14", border: "#c084fc55" },
+  Fringe: { accent: "#888", bg: "#88888814", border: "#88888855" },
+};
+const SEASON_STATS_BASE = {};
+
 const BALANCED_RECV_ARCH_BY_NAME = buildBalancedRecvArchetypeMap(ALL_PLAYERS_BASE);
 
 function getRebalancedRecvArchetype(player, playerName){
