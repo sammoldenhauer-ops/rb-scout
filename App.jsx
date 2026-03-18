@@ -9111,7 +9111,7 @@ function App() {
           {/* Elevator pitch */}
           <div style={{marginBottom:12,padding:"12px 14px",background:"rgba(255,255,255,0.02)",borderRadius:9,border:"1px solid rgba(255,255,255,0.06)",textAlign:"center"}}>
             <div style={{fontSize:15,fontWeight:700,color:"#fff",marginBottom:5,letterSpacing:-0.2}}>The most data-driven college RB evaluation model available.</div>
-            <div style={{fontSize:13,color:"#777",lineHeight:1.7}}>RB Scout grades every prospect across production trajectory, athletic testing, and PFF board scores — then validates each metric against real NFL outcomes from {Object.values(ALL_DATA).filter(p=>(p.draft_round||p.draft_pick)&&p.draft_round!=='UDFA').length} drafted backs. Use it to cut through the noise of draft season, surface undervalued prospects, and understand exactly what college statistics actually predict success at the next level.
+            <div style={{fontSize:13,color:"#777",lineHeight:1.7}}>RB Scout grades every prospect across production trajectory, athletic testing, and PFF board scores — then validates each metric against real NFL outcomes from {Object.values(ALL_PLAYERS).filter(p=>(p.draft_round||p.draft_pick)&&p.draft_round!=='UDFA').length} drafted backs. Use it to cut through the noise of draft season, surface undervalued prospects, and understand exactly what college statistics actually predict success at the next level.
             </div>
           </div>
 
