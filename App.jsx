@@ -8788,6 +8788,27 @@ function App() {
   }, [customPlayers, playerOverrides, customSeasons, deletedPlayers, customSoS, customFinishSeasons, customSeasonsPlayed, currentProjectionClass]);
 
   useEffect(() => {
+    if (typeof window === "undefined" || !window.localStorage) return;
+    try {
+      const payload = {
+        version: "rbscout_v6_runtime_data",
+        updatedAt: new Date().toISOString(),
+        customPlayers,
+        playerOverrides,
+        customSeasons,
+        deletedPlayers,
+        customSoS,
+        customFinishSeasons,
+        customSeasonsPlayed,
+        currentProjectionClass,
+      };
+      window.localStorage.setItem(PERSIST_KEY, JSON.stringify(payload));
+    } catch {
+      // Silently fail if localStorage is full or unavailable
+    }
+  }, [customPlayers, playerOverrides, customSeasons, deletedPlayers, customSoS, customFinishSeasons, customSeasonsPlayed, currentProjectionClass]);
+
+  useEffect(() => {
     if (!hasValidSupabaseUrl && String(env.VITE_SUPABASE_URL || "").trim()) {
       setCloudSyncStatus("ERROR");
       setCloudSyncError(`Invalid SUPABASE URL: ${String(env.VITE_SUPABASE_URL).trim()}`);
