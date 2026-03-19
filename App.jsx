@@ -2709,42 +2709,8 @@ function TrajectoryTiles({data, accent, recruiting}) {
 
   const [scoutOpen, setScoutOpen] = React.useState(null); // "strengths" | "weaknesses" | null
   const fallbackScoutNotes = React.useMemo(() => {
-    const toNum = (v) => {
-      const n = Number(v);
-      return Number.isFinite(n) ? n : null;
-    };
-    const strengthsOut = [];
-    const weaknessesOut = [];
-    const prod = toNum(data?.prod_trajectory);
-    const rush = toNum(data?.rush_trajectory);
-    const recv = toNum(data?.recv_trajectory);
-    const athl = toNum(data?.athl_score);
-    const pff = toNum(data?.pff_score);
-    const consistency = toNum(data?.traj_consistency);
-    const improvement = toNum(data?.traj_improvement);
-    const seasonCount = Number(data?.num_seasons) || (Array.isArray(data?.seasons) ? data.seasons.length : 0);
-
-    if (prod != null && prod >= 60) strengthsOut.push(`Strong overall production trajectory (${prod.toFixed(1)}), indicating translatable college output.`);
-    if (rush != null && rush >= 60) strengthsOut.push(`Rushing profile is a clear plus (${rush.toFixed(1)}), with evidence of sustainable ground-game impact.`);
-    if (recv != null && recv >= 58) strengthsOut.push(`Receiving trajectory (${recv.toFixed(1)}) supports legitimate three-down usage.`);
-    if (athl != null && athl >= 65) strengthsOut.push(`Athletic profile grades well (${athl.toFixed(1)}), supporting NFL upside traits.`);
-    if (pff != null && pff >= 80) strengthsOut.push(`PFF evaluation is favorable (${pff.toFixed(1)}), adding confidence to the profile.`);
-    if (consistency != null && consistency >= 75) strengthsOut.push(`Year-to-year consistency (${consistency.toFixed(1)}) suggests a stable projection baseline.`);
-
-    if (prod != null && prod < 52) weaknessesOut.push(`Overall production trajectory is below target (${prod.toFixed(1)}), leaving less margin for projection error.`);
-    if (rush != null && rush < 52) weaknessesOut.push(`Rushing trajectory (${rush.toFixed(1)}) is below starter-caliber thresholds in this model.`);
-    if (recv != null && recv < 45) weaknessesOut.push(`Receiving profile (${recv.toFixed(1)}) is limited, which can cap third-down role value.`);
-    if (athl != null && athl < 45) weaknessesOut.push(`Athletic score (${athl.toFixed(1)}) is a concern relative to modern RB role demands.`);
-    if (improvement != null && improvement < 45) weaknessesOut.push(`Development arc appears flat/declining (${improvement.toFixed(1)}), which lowers growth confidence.`);
-    if (seasonCount > 0 && seasonCount < 3) weaknessesOut.push(`Limited sample size (${seasonCount} season${seasonCount === 1 ? "" : "s"}) increases projection volatility.`);
-
-    if (!strengthsOut.length) strengthsOut.push("Profile has at least one translatable trait, but requires more complete data to sharpen strengths.");
-    if (!weaknessesOut.length) weaknessesOut.push("No single critical red flag, but role certainty depends on scheme fit and usage context.");
-
-    return {
-      strengths: strengthsOut.slice(0, 3),
-      weaknesses: weaknessesOut.slice(0, 3),
-    };
+    const seasons = Array.isArray(data?.seasons) ? data.seasons : [];
+    return buildUnifiedScoutNotes({ data, seasons });
   }, [data]);
 
   const strengths = (Array.isArray(recruiting?.scout_strengths) && recruiting.scout_strengths.length)
@@ -2825,6 +2791,94 @@ function TrajectoryTiles({data, accent, recruiting}) {
       )}
     </div>
   );
+}
+
+function buildUnifiedScoutNotes({ data, seasons = [] }) {
+  const toNum = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const pushUnique = (arr, text) => {
+    if (!text || arr.includes(text)) return;
+    arr.push(text);
+  };
+
+  const activeSeasons = (Array.isArray(seasons) ? seasons : []).filter((s) => !s?.redshirt);
+  const seasonCount = activeSeasons.length || Number(data?.num_seasons) || 0;
+  const sosLabels = activeSeasons.map((s) => String(s?.sos_label || "Average"));
+  const strongSoSCount = sosLabels.filter((x) => x === "Strong" || x === "Elite").length;
+  const weakSoSCount = sosLabels.filter((x) => x === "Weak" || x === "Very Weak" || x === "FCS").length;
+
+  const prod = toNum(data?.prod_trajectory);
+  const rush = toNum(data?.rush_trajectory);
+  const recv = toNum(data?.recv_trajectory);
+  const athl = toNum(data?.athl_score);
+  const pff = toNum(data?.pff_score);
+  const consistency = toNum(data?.traj_consistency);
+  const improvement = toNum(data?.traj_improvement);
+
+  const strengthsOut = [];
+  const weaknessesOut = [];
+
+  if (prod != null) {
+    if (prod >= 60) pushUnique(strengthsOut, `Strong overall production trajectory (${prod.toFixed(1)}) provides a clear NFL projection baseline.`);
+    else if (prod < 52) pushUnique(weaknessesOut, `Overall production trajectory is below target (${prod.toFixed(1)}), leaving less margin for projection error.`);
+  }
+  if (rush != null) {
+    if (rush >= 60) pushUnique(strengthsOut, `Rushing profile is a clear plus (${rush.toFixed(1)}), with evidence of sustainable ground-game impact.`);
+    else if (rush < 52) pushUnique(weaknessesOut, `Rushing trajectory (${rush.toFixed(1)}) is below starter-caliber thresholds in this model.`);
+  }
+  if (recv != null) {
+    if (recv >= 58) pushUnique(strengthsOut, `Receiving trajectory (${recv.toFixed(1)}) supports legitimate three-down usage.`);
+    else if (recv < 45) pushUnique(weaknessesOut, `Receiving profile (${recv.toFixed(1)}) is limited, which can cap third-down role value.`);
+  }
+  if (athl != null) {
+    if (athl >= 65) pushUnique(strengthsOut, `Athletic profile grades well (${athl.toFixed(1)}), supporting translatable NFL movement traits.`);
+    else if (athl < 45) pushUnique(weaknessesOut, `Athletic score (${athl.toFixed(1)}) is a concern relative to modern RB role demands.`);
+  }
+  if (pff != null) {
+    if (pff >= 80) pushUnique(strengthsOut, `PFF evaluation is favorable (${pff.toFixed(1)}), adding confidence to film-aligned projection quality.`);
+    else if (pff < 70) pushUnique(weaknessesOut, `PFF signal (${pff.toFixed(1)}) is modest, so role confidence needs to come from situation and development.`);
+  }
+  if (consistency != null) {
+    if (consistency >= 75) pushUnique(strengthsOut, `Year-to-year consistency (${consistency.toFixed(1)}) supports a reliable projection floor.`);
+    else if (consistency < 55) pushUnique(weaknessesOut, `Consistency score (${consistency.toFixed(1)}) reflects meaningful season-to-season volatility.`);
+  }
+  if (improvement != null) {
+    if (improvement >= 60) pushUnique(strengthsOut, `Improvement score (${improvement.toFixed(1)}) shows a positive late-career development arc.`);
+    else if (improvement < 45) pushUnique(weaknessesOut, `Development arc appears flat or declining (${improvement.toFixed(1)}), which lowers growth confidence.`);
+  }
+
+  if (strongSoSCount > weakSoSCount && strongSoSCount > 0) {
+    pushUnique(strengthsOut, "Meaningful production came against strong schedule competition, improving translation confidence.");
+  } else if (weakSoSCount > strongSoSCount) {
+    pushUnique(weaknessesOut, "A larger share of production came against weaker schedule bands, adding translation uncertainty.");
+  }
+
+  if (seasonCount >= 3) {
+    pushUnique(strengthsOut, `Multi-year sample (${seasonCount} seasons) improves projection stability.`);
+  } else if (seasonCount > 0) {
+    pushUnique(weaknessesOut, `Limited sample size (${seasonCount} season${seasonCount === 1 ? "" : "s"}) increases projection volatility.`);
+  }
+
+  const fallbackStrengths = [
+    "Profile has at least one translatable trait that can support a defined NFL role.",
+    "Overall scoring mix suggests deployable value if role and scheme align early.",
+    "No single metric fully defines this profile, and blended context supports developmental upside.",
+  ];
+  const fallbackWeaknesses = [
+    "Role certainty depends heavily on landing spot and early usage design.",
+    "Projection still carries normal transition risk from college to NFL competition speed.",
+    "Early-career outcomes may vary if efficiency and touch stability do not rise together.",
+  ];
+
+  while (strengthsOut.length < 3 && fallbackStrengths.length) pushUnique(strengthsOut, fallbackStrengths.shift());
+  while (weaknessesOut.length < 3 && fallbackWeaknesses.length) pushUnique(weaknessesOut, fallbackWeaknesses.shift());
+
+  return {
+    strengths: strengthsOut.slice(0, 3),
+    weaknesses: weaknessesOut.slice(0, 3),
+  };
 }
 
 function ProductionChart({data, accent}) {
@@ -5563,42 +5617,18 @@ function AddPlayerModal({onClose, onAdd, existingPlayers, sosByYear={}, currentP
       };
     });
 
-    const buildAddPlayerScoutNotes = () => {
-      const sosLabels = seasons.filter((s) => !s.redshirt).map((s) => String(s.sos_label || "Average"));
-      const strongSoSCount = sosLabels.filter((x) => x === "Strong" || x === "Elite").length;
-      const weakSoSCount = sosLabels.filter((x) => x === "Weak" || x === "Very Weak" || x === "FCS").length;
-      const seasonCount = Math.max(0, nonRedshirtIdxs.length);
-
-      const strengths = [
-        `Production trajectory of ${scores.prod_trajectory.toFixed(1)} gives this profile a stable baseline relative to peers in the class. The scoring mix across rushing and receiving indicates usable offensive value beyond a single-game-script role.`,
-        `Rushing (${rush_trajectory.toFixed(1)}) and receiving (${recv_trajectory.toFixed(1)}) trajectories show where this player can win at the next level. A balanced profile generally creates more lineup pathways for NFL coaching staffs than a one-dimensional usage projection.`,
-        strongSoSCount > 0
-          ? `A meaningful share of active seasons came against strong schedule competition, which improves confidence in the underlying production translation. Output earned versus better opponents is typically more predictive than inflated volume against overmatched defenses.`
-          : `The season history provides enough signal to establish a functional projection baseline for role evaluation. Even without a perfect opponent profile, multi-season evidence is valuable when paired with trajectory and efficiency context.`,
-      ];
-
-      const weaknesses = [
-        scores.prod_trajectory < 55
-          ? `Production trajectory currently grades below ideal starter thresholds at ${scores.prod_trajectory.toFixed(1)}. To outplay that baseline in the NFL, role fit and early usage efficiency will need to compensate quickly.`
-          : `Even with a workable production baseline, this profile still carries normal transition risk against NFL speed and defensive structure. Early-down viability alone is rarely enough without parallel passing-game trust.`
-        ,
-        traj_improvement < 48
-          ? `Improvement score of ${traj_improvement.toFixed(1)} suggests a flatter or less upward development arc than preferred. Developmental slope matters because players still climbing late in college tend to retain more growth runway.`
-          : `Consistency score of ${traj_consistency.toFixed(1)} can still mask role volatility if weekly usage changes by game script. Stable fantasy/NFL outcomes usually require both efficiency and predictable touch deployment.`
-        ,
-        weakSoSCount > strongSoSCount
-          ? `Strength-of-schedule context introduces caution because a larger share of seasons came against weaker competition bands. Replication against faster, more physical defensive fronts remains the key validation step.`
-          : (seasonCount < 3
-            ? `Limited active-season sample (${seasonCount}) increases projection uncertainty, even when per-season scores look solid. Smaller samples carry higher variance and require cleaner role/scheme alignment early.`
-            : `Scheme and deployment fit will play an outsized role in whether this profile reaches its percentile outcomes. Players in this tier often separate by landing spot details as much as raw talent.`),
-      ];
-
-      return {
-        strengths: strengths.slice(0, 3),
-        weaknesses: weaknesses.slice(0, 3),
-      };
-    };
-    const scoutNotes = buildAddPlayerScoutNotes();
+    const scoutNotes = buildUnifiedScoutNotes({
+      data: {
+        prod_trajectory: scores.prod_trajectory,
+        rush_trajectory,
+        recv_trajectory,
+        athl_score: scores.athl_score,
+        pff_score: scores.pff_score,
+        traj_improvement,
+        traj_consistency,
+      },
+      seasons,
+    });
 
     // Athletic metrics: compute ranks by closeness to ideal RB athletic profile
     const IDEAL_ATHL = {
@@ -9012,6 +9042,7 @@ function App() {
         seasonNums.forEach((n, idx) => {
           const row = ssData[String(n)] || ssData[n] || [];
           const baseMeta = metaByN[n] || {n};
+          const isRedshirt = !!baseMeta.redshirt;
           const seasonInput = {
             n,
             attempts: rowVal(row, 0) ?? 0,
@@ -9046,9 +9077,12 @@ function App() {
           };
 
           const {rushScore, recvScore, adjScore} = calcSeasonComponents(seasonInput);
-          rushScores.push({idx, score:rushScore});
-          recvScores.push({idx, score:recvScore});
-          adjScores.push({idx, score:adjScore});
+          if (!isRedshirt) {
+            const scoreIdx = adjScores.length;
+            rushScores.push({idx:scoreIdx, score:rushScore});
+            recvScores.push({idx:scoreIdx, score:recvScore});
+            adjScores.push({idx:scoreIdx, score:adjScore});
+          }
 
           rebuilt.push({
             ...baseMeta,
@@ -9059,17 +9093,18 @@ function App() {
             sos_label: baseMeta.sos_label || "Average",
             sos_rank: baseMeta.sos_rank ?? null,
             sos_mag: baseMeta.sos_mag ?? null,
-            rush_score: Math.round(rushScore * 10) / 10,
-            recv_score: Math.round(recvScore * 10) / 10,
-            adj_score: Math.round(adjScore * 10) / 10,
-            r: Math.round(rushScore * 10) / 10,
-            v: Math.round(recvScore * 10) / 10,
-            c: Math.round(adjScore * 10) / 10,
+            redshirt: isRedshirt,
+            rush_score: isRedshirt ? null : Math.round(rushScore * 10) / 10,
+            recv_score: isRedshirt ? null : Math.round(recvScore * 10) / 10,
+            adj_score: isRedshirt ? null : Math.round(adjScore * 10) / 10,
+            r: isRedshirt ? null : Math.round(rushScore * 10) / 10,
+            v: isRedshirt ? null : Math.round(recvScore * 10) / 10,
+            c: isRedshirt ? null : Math.round(adjScore * 10) / 10,
           });
         });
 
         next.seasons = rebuilt;
-        next.num_seasons = rebuilt.length;
+        next.num_seasons = adjScores.length;
 
         const weighted = (arr) => {
           if (!arr.length) return null;
@@ -9090,14 +9125,32 @@ function App() {
         if (flat.length) {
           const peak = Math.max(...flat);
           const final = flat[flat.length - 1];
-          const first = flat[0];
-          const mean = flat.reduce((a,b)=>a+b,0) / flat.length;
-          const variance = flat.reduce((a,b)=>a+Math.pow(b-mean,2),0) / flat.length;
-          const std = Math.sqrt(variance);
+          const slope = (arr) => {
+            if (!Array.isArray(arr) || arr.length < 2) return 0;
+            const n = arr.length;
+            const meanX = (n - 1) / 2;
+            const meanY = arr.reduce((a, b) => a + b, 0) / n;
+            let num = 0;
+            let den = 0;
+            for (let i = 0; i < n; i++) {
+              const dx = i - meanX;
+              const dy = arr[i] - meanY;
+              num += dx * dy;
+              den += dx * dx;
+            }
+            return den ? (num / den) : 0;
+          };
+          const stdDev = (arr) => {
+            if (!Array.isArray(arr) || !arr.length) return 0;
+            const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+            const varr = arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length;
+            return Math.sqrt(varr);
+          };
+          const clamp = (v, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
           next.traj_peak = Math.round(peak * 10) / 10;
           next.traj_final = Math.round(final * 10) / 10;
-          next.traj_improvement = Math.round(Math.max(0, Math.min(100, 50 + (final - first) * 1.2)) * 10) / 10;
-          next.traj_consistency = Math.round(Math.max(0, Math.min(100, 100 - std * 3.5)) * 10) / 10;
+          next.traj_improvement = Math.round(clamp(50 + slope(flat) * 1.8) * 10) / 10;
+          next.traj_consistency = Math.round(clamp(100 - stdDev(flat) * 2.0) * 10) / 10;
         }
       }
 
@@ -9862,7 +9915,7 @@ function App() {
             // Rushing (indices 0-14): ATT,YDS,Y/A,RUSH TD,FUM,RUN GRD,YCO/A,MTF/A,10+/A,15+/A,BAY%,1D/A,ELU,Y DOM%,TD DOM%
             const rushKeys=[s.attempts,s.rush_yds,s.ypa,s.rush_tds,s.fumbles,s.run_grade,s.yco_a,s.mtf_a,s.ten_plus_a,s.fifteen_plus_a,s.bay_pct,s.first_downs_a,s.elu,s.ydom,s.tddom];
             // Receiving (indices 15-26): TGT,REC,REC%,REC YDS,Y/REC,REC TD,REC GRD,RECV,YAC/REC,Y/RR,ADOT,MTF/REC
-            const recvKeys=[s.targets,s.receptions,s.rec_pct,s.rec_yds,s.yds_per_rec,s.rec_tds,s.recv_grade,s.recv_snaps,s.yac_rec,null,s.adot,s.mtf_rec];
+            const recvKeys=[s.targets,s.receptions,s.rec_pct,s.rec_yds,s.yds_per_rec,s.rec_tds,s.recv_grade,s.recv_snaps,s.yac_rec,s.y_rr,s.adot,s.mtf_rec];
             rushKeys.forEach((v,ri)=>{ if(v!=null&&v!=="")row[ri]=[parseFloat(v),null]; });
             recvKeys.forEach((v,ri)=>{ if(v!=null&&v!=="")row[15+ri]=[parseFloat(v),null]; });
             ssMap[key]=row;
