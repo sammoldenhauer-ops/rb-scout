@@ -8662,15 +8662,10 @@ function App() {
     if (typeof window === "undefined" || !window.localStorage) return {};
     try {
       const raw = window.localStorage.getItem(PERSIST_KEY);
-      if (!raw) {
-        console.log("[PERSIST] No data in localStorage with key:", PERSIST_KEY);
-        return {};
-      }
+      if (!raw) return {};
       const parsed = JSON.parse(raw);
-      console.log("[PERSIST] Read from localStorage:", parsed);
       return parsed && typeof parsed === "object" ? parsed : {};
-    } catch (e) {
-      console.log("[PERSIST] Error reading localStorage:", e);
+    } catch {
       return {};
     }
   };
@@ -8696,14 +8691,6 @@ function App() {
     });
     return merged;
   };
-  console.log("[INIT] Persisted data on app load:", {
-    hasCustomPlayers: !!persisted.customPlayers,
-    numCustomPlayers: Object.keys(persisted.customPlayers || {}).length,
-    customPlayerNames: Object.keys(persisted.customPlayers || {}),
-    hasCustomSeasons: !!persisted.customSeasons,
-    numCustomSeasons: Object.keys(persisted.customSeasons || {}).length,
-  });
-
   const isMobile = useIsMobile(860);
   const [query,setQuery]       = useState("");
   const [selected,setSelected] = useState(null);
@@ -8878,15 +8865,9 @@ function App() {
         customSeasonsPlayed,
         currentProjectionClass,
       };
-      console.log("[PERSIST] Writing to localStorage:", {
-        numCustomPlayers: Object.keys(customPlayers || {}).length,
-        numCustomSeasons: Object.keys(customSeasons || {}).length,
-        customPlayerNames: Object.keys(customPlayers || {})
-      });
       window.localStorage.setItem(PERSIST_KEY, JSON.stringify(payload));
-      console.log("[PERSIST] Successfully wrote to localStorage");
-    } catch (e) {
-      console.log("[PERSIST] Error writing to localStorage:", e);
+    } catch {
+      // Silently fail if localStorage is full or unavailable
     }
   }, [customPlayers, playerOverrides, customSeasons, deletedPlayers, customSoS, customFinishSeasons, customSeasonsPlayed, currentProjectionClass]);
 
@@ -9533,6 +9514,7 @@ function App() {
               <div style={{fontSize:8,color:"#333",letterSpacing:3,marginTop:3,marginBottom:3}}>COLLEGE RB PROSPECT MODEL · V6</div>
               <div style={{fontSize:9,color:"#444",marginTop:1}}>{Object.keys(ALL_DATA).length} prospects · 2017–{currentProjectionClass} · Prod 75% · Athl 10% · PFF 15%</div>
               <div style={{fontSize:10,color:"#4da6ff",marginTop:6,letterSpacing:1.2}}>CURRENT CLASS · {currentProjectionClass}</div>
+              <div style={{fontSize:10,color:"#9aa7ba",marginTop:4,letterSpacing:0.6}}>Season stats powered by PFF.</div>
             </div>
             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",justifyContent:"center",flexShrink:0,width:"100%"}}>
               <button onClick={()=>setShowVal(true)} style={{background:"rgba(240,192,64,0.08)",border:"1px solid rgba(240,192,64,0.3)",color:"#f0c040",padding:"6px 10px",borderRadius:7,fontSize:8,letterSpacing:1.5}}>
@@ -10007,7 +9989,6 @@ function App() {
         existingPlayers={ALL_DATA}
         currentProjectionClass={currentProjectionClass}
         onAdd={(name,playerData,seasons)=>{
-          console.log("[ADD_PLAYER] Adding player:", name, "with", seasons?.length || 0, "seasons");
           setCustom(prev=>({...prev,[name]:playerData}));
           setDeletedPlayers(prev => {
             const base = asObj(prev);
@@ -10031,8 +10012,7 @@ function App() {
             recvKeys.forEach((v,ri)=>{ if(v!=null&&v!=="")row[15+ri]=[parseFloat(v),null]; });
             ssMap[key]=row;
           });
-          console.log("[ADD_PLAYER] Season stats map:", ssMap);
-          setCustomSS(prev=>{const n={...prev,[name]:ssMap};_customSS=n;console.log("[ADD_PLAYER] Updated customSeasons, now contains:", Object.keys(n));return n;});
+          setCustomSS(prev=>{const n={...prev,[name]:ssMap};_customSS=n;return n;});
           setShowAdd(false);
         }}
         sosByYear={customSoS}
