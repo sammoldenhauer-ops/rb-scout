@@ -8687,6 +8687,15 @@ function App() {
     }
   };
   const persisted = readPersistedStore();
+  const getMergedSeasonStats = (seasonsObj, overridesObj) => {
+    const merged = { ...asObj(seasonsObj) };
+    Object.entries(asObj(overridesObj)).forEach(([name, ov]) => {
+      if (ov && ov.seasonStats && typeof ov.seasonStats === "object") {
+        merged[name] = ov.seasonStats;
+      }
+    });
+    return merged;
+  };
   console.log("[INIT] Persisted data on app load:", {
     hasCustomPlayers: !!persisted.customPlayers,
     numCustomPlayers: Object.keys(persisted.customPlayers || {}).length,
@@ -8717,7 +8726,11 @@ function App() {
   const [returnToCompare,setReturnToCompare] = useState(false);
   const [customPlayers,setCustom]    = useState(() => asObj(persisted.customPlayers));
   const [playerOverrides,setPlayerOverrides] = useState(() => asObj(persisted.playerOverrides));
-  const [customSeasons,setCustomSS]  = useState(() => asObj(persisted.customSeasons));
+  const [customSeasons,setCustomSS]  = useState(() => {
+    const seasons = asObj(persisted.customSeasons);
+    _customSS = getMergedSeasonStats(seasons, persisted.playerOverrides);
+    return seasons;
+  });
   const [deletedPlayers,setDeletedPlayers] = useState(() => asObj(persisted.deletedPlayers));
   const [customSoS,setCustomSoS]     = useState(() => asObj(persisted.customSoS)); // {year: {teamName: {rank, mag, label}}}
   const [customFinishSeasons,setCustomFinishSeasons] = useState(() => asObj(persisted.customFinishSeasons)); // {year: {top12:[{name,rank}], top24:[{name,rank}]}}
@@ -8746,6 +8759,7 @@ function App() {
 
   const applyRuntimePayload = (payload) => {
     const p = payload && typeof payload === "object" ? payload : {};
+    _customSS = getMergedSeasonStats(p.customSeasons, p.playerOverrides);
     isApplyingCloudRef.current = true;
     setCustom(asObj(p.customPlayers));
     setPlayerOverrides(asObj(p.playerOverrides));
@@ -9995,6 +10009,13 @@ function App() {
         onAdd={(name,playerData,seasons)=>{
           console.log("[ADD_PLAYER] Adding player:", name, "with", seasons?.length || 0, "seasons");
           setCustom(prev=>({...prev,[name]:playerData}));
+          setDeletedPlayers(prev => {
+            const base = asObj(prev);
+            if (!base[name]) return base;
+            const next = { ...base };
+            delete next[name];
+            return next;
+          });
           const ssMap={};
           seasons.forEach((s,i)=>{
             const key=String(s.n||i+1);
