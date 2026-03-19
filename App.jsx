@@ -1634,6 +1634,33 @@ function NFLPanel({nfl, accent, isDraftClass, projT12, projT24, projT12Rank, pro
   const [projChartMode, setProjChartMode] = React.useState("line");
 
   const projectionCalibration = React.useMemo(() => {
+    const applyYr6RarityPenalty = (vals) => {
+      const t12 = Number(vals?.t12);
+      const t24 = Number(vals?.t24);
+      if (!Number.isFinite(t12) && !Number.isFinite(t24)) {
+        return { t12: null, t24: null };
+      }
+
+      const mult = getUntrustedYr6ProjectionPenaltyMultiplier(playerData);
+      if (mult >= 1) {
+        return {
+          t12: Number.isFinite(t12) ? t12 : null,
+          t24: Number.isFinite(t24) ? t24 : null,
+        };
+      }
+
+      const penalized12 = Number.isFinite(t12) ? Math.max(0, Math.min(99, t12 * mult)) : null;
+      const penalized24Base = Number.isFinite(t24) ? Math.max(0, Math.min(99, t24 * mult)) : null;
+      const penalized24 = penalized24Base != null && penalized12 != null
+        ? Math.max(penalized24Base, penalized12)
+        : penalized24Base;
+
+      return {
+        t12: penalized12,
+        t24: penalized24,
+      };
+    };
+
     const base12 = Number(projT12);
     const base24 = Number(projT24);
     if (!isDraftClass) {
@@ -1658,16 +1685,16 @@ function NFLPanel({nfl, accent, isDraftClass, projT12, projT24, projT12Rank, pro
         : draftRoundHist <= 5 ? 0.90
         : draftRoundHist <= 6 ? 0.78
         : 0.60;
-      return {
+      return applyYr6RarityPenalty({
         t12: Number.isFinite(base12) ? base12 * psDampen * roundMult : null,
         t24: Number.isFinite(base24) ? base24 * psDampen * roundMult : null,
-      };
+      });
     }
     if (!playerData || !Number.isFinite(base12) || !Number.isFinite(base24)) {
-      return {
+      return applyYr6RarityPenalty({
         t12: Number.isFinite(base12) ? base12 : null,
         t24: Number.isFinite(base24) ? base24 : null,
-      };
+      });
     }
 
     const metricsOk = [
@@ -1678,7 +1705,7 @@ function NFLPanel({nfl, accent, isDraftClass, projT12, projT24, projT12Rank, pro
     ].every((v) => Number.isFinite(v));
 
     if (!metricsOk) {
-      return { t12: base12, t24: base24 };
+      return applyYr6RarityPenalty({ t12: base12, t24: base24 });
     }
 
     const historical = Object.values(ALL_PLAYERS).filter((p) => {
@@ -1695,7 +1722,7 @@ function NFLPanel({nfl, accent, isDraftClass, projT12, projT24, projT12Rank, pro
     });
 
     if (!historical.length) {
-      return { t12: base12, t24: base24 };
+      return applyYr6RarityPenalty({ t12: base12, t24: base24 });
     }
 
     const tierKey = String(playerData?.tier || "").toLowerCase();
@@ -1755,14 +1782,15 @@ function NFLPanel({nfl, accent, isDraftClass, projT12, projT24, projT12Rank, pro
     t24 = Math.max(base24, Math.min(tierCfg.cap24, t24));
     t24 = Math.max(t24, t12 + 8);
 
-    return {
+    return applyYr6RarityPenalty({
       t12: Math.max(0, Math.min(99, t12)),
       t24: Math.max(0, Math.min(99, t24)),
-    };
+    });
   }, [isDraftClass, playerData, projT12, projT24]);
 
   const calibratedProjT12 = projectionCalibration.t12;
   const calibratedProjT24 = projectionCalibration.t24;
+  const yr6RarityPenaltyApplied = hasUntrustedYr6SeasonForPlayer(playerData);
 
   const buildProjectedMultiHitSummary = () => {
     const p12 = Number(calibratedProjT12);
@@ -2410,6 +2438,11 @@ function NFLPanel({nfl, accent, isDraftClass, projT12, projT24, projT12Rank, pro
             <div style={{fontSize:11,color:"#555",lineHeight:1.65,marginBottom:10}}>
               Based on historical outcomes of similarly-scored RBs (prospect score ±5, production ±5, athletic ±5, PFF board ±5).{hasDraftInfo ? " Draft capital factored in." : " Draft capital excluded — not yet drafted."} These percentages reflect the projected likelihood that the player hits top-12 or top-24 <em>in any season of their NFL career</em>, not specifically in year one.
             </div>
+            {yr6RarityPenaltyApplied && (
+              <div style={{fontSize:10,color:"#f0c040",lineHeight:1.5,marginBottom:10,padding:"8px 10px",border:"1px solid rgba(240,192,64,0.25)",borderRadius:7,background:"rgba(240,192,64,0.06)"}}>
+                YR6 rarity penalty applied: this profile is intentionally suppressed until at least 40 YR6 players exist in the sample.
+              </div>
+            )}
             <div style={{display:"flex",gap:8}}>
               {[[calibratedProjT12,projT12Rank,"TOP-12","#f0c040"],[calibratedProjT24,projT24Rank,"TOP-24","#5dbf6a"]].map(([val,rank,lbl,c])=>(
                 <div key={lbl} style={{flex:1,background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"12px 10px",textAlign:"center",border:"1px solid "+c+"22"}}>
@@ -2458,6 +2491,11 @@ function NFLPanel({nfl, accent, isDraftClass, projT12, projT24, projT12Rank, pro
             <div style={{fontSize:11,color:"#555",lineHeight:1.65,marginBottom:10}}>
               Based on historical outcomes of similarly-scored RBs with this profile (prospect score ±5, production ±5, athletic ±5, PFF board ±5) and draft capital. These percentages reflect the projected likelihood that the player hits top-12 or top-24 <em>in any season of their NFL career</em>.
             </div>
+            {yr6RarityPenaltyApplied && (
+              <div style={{fontSize:10,color:"#f0c040",lineHeight:1.5,marginBottom:10,padding:"8px 10px",border:"1px solid rgba(240,192,64,0.25)",borderRadius:7,background:"rgba(240,192,64,0.06)"}}>
+                YR6 rarity penalty applied: this profile is intentionally suppressed until at least 40 YR6 players exist in the sample.
+              </div>
+            )}
             <div style={{display:"flex",gap:8}}>
               {[[calibratedProjT12,projT12Rank,"TOP-12","#f0c040"],[calibratedProjT24,projT24Rank,"TOP-24","#5dbf6a"]].map(([val,rank,lbl,c])=>(
                 <div key={lbl} style={{flex:1,background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"12px 10px",textAlign:"center",border:"1px solid "+c+"22"}}>
@@ -2489,6 +2527,11 @@ function NFLPanel({nfl, accent, isDraftClass, projT12, projT24, projT12Rank, pro
           <div style={{fontSize:11,color:"#555",lineHeight:1.65,marginBottom:10}}>
             Based on historical outcomes of similarly-scored and drafted RBs (prospect score ±5, production ±5, athletic ±5, PFF board ±5, draft pick ±15). Draft capital weighted 65%. These percentages reflect the projected likelihood that the player hits top-12 or top-24 <em>in any season of their NFL career</em>, not specifically in year one.
           </div>
+          {yr6RarityPenaltyApplied && (
+            <div style={{fontSize:10,color:"#f0c040",lineHeight:1.5,marginBottom:10,padding:"8px 10px",border:"1px solid rgba(240,192,64,0.25)",borderRadius:7,background:"rgba(240,192,64,0.06)"}}>
+              YR6 rarity penalty applied: this profile is intentionally suppressed until at least 40 YR6 players exist in the sample.
+            </div>
+          )}
           <div style={{display:"flex",gap:8,marginBottom:4}}>
             {[[calibratedProjT12,projT12Rank,"TOP-12","#f0c040"],[calibratedProjT24,projT24Rank,"TOP-24","#5dbf6a"]].map(([val,rank,lbl,c])=>(
               <div key={lbl} style={{flex:1,background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"12px 10px",textAlign:"center",border:"1px solid "+c+"22"}}>
@@ -5245,6 +5288,23 @@ function shouldIncludeSeasonInDerivedAnalytics(season, fallbackN) {
 
 function filterSeasonsForDerivedAnalytics(seasons) {
   return (Array.isArray(seasons) ? seasons : []).filter((s, i) => shouldIncludeSeasonInDerivedAnalytics(s, i + 1));
+}
+
+function hasUntrustedYr6SeasonForPlayer(playerData) {
+  if (isYr6Trusted()) return false;
+  const seasons = Array.isArray(playerData?.seasons) ? playerData.seasons : [];
+  return seasons.some((s, i) => {
+    const n = seasonNumberForAnalytics(s, i + 1);
+    return n === 6 && !s?.redshirt;
+  });
+}
+
+function getUntrustedYr6ProjectionPenaltyMultiplier(playerData) {
+  if (!hasUntrustedYr6SeasonForPlayer(playerData)) return 1;
+  const sample = Math.max(0, Math.min(YR6_CONFIDENCE_FULL_SAMPLE, getSeasonSampleSize(6)));
+  const t = sample / YR6_CONFIDENCE_FULL_SAMPLE;
+  // Keep YR6 projections very low until sample support is strong.
+  return 0.08 + (0.22 * t);
 }
 
 function getAdjustedYearWeight(yearIdx) {
