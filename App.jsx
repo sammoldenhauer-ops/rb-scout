@@ -4738,20 +4738,20 @@ function CompareModal({onClose, allNames, allData, selections, onChangeSelection
     if (!sourceName || !sourceData) return;
 
     const overallComps = getClosestPlayerComps(sourceName, sourceData, ALL_PLAYERS, 3)?.overall || [];
-    const compTargets = [0, 1, 2].filter((idx) => idx !== sourceIdx);
-    const compEntries = overallComps.slice(0, compTargets.length);
+    const compEntries = overallComps.slice(0, 2);
     if (!compEntries.length) return;
 
-    const nextSelections = [...selections];
-    const nextInputs = [...inputs];
+    const nextSelections = [sourceName, "", ""];
+    const nextInputs = [sourceName, "", ""];
     const nextMeta = {};
 
-    compTargets.forEach((idx, targetOffset) => {
+    [1, 2].forEach((idx, targetOffset) => {
       const entry = compEntries[targetOffset];
-      if (!entry) return;
-      nextSelections[idx] = entry.name;
-      nextInputs[idx] = entry.name;
-      nextMeta[idx] = `${getCompMatchPct(entry.d, 22)}% overall comp match`;
+      if (entry) {
+        nextSelections[idx] = entry.name;
+        nextInputs[idx] = entry.name;
+        nextMeta[idx] = `${getCompMatchPct(entry.d, 22)}% overall comp match`;
+      }
     });
 
     onChangeSelections(nextSelections);
