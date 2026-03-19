@@ -5123,8 +5123,8 @@ const RECV_STAT_WEIGHTS = {
   rec_tds:3, recv_grade:12, recv_snaps:5,
   yac:3, yac_rec:7, y_rr:8, adot:7, mtf_recv:5, mtf_rec:6
 };
-// Year weights: YR1=25, YR2=28, YR3=30, YR4=28, YR5=25
-const YEAR_WEIGHTS = [25, 28, 30, 28, 25];
+// Year weights: YR1=25, YR2=28, YR3=30, YR4=28, YR5=25, YR6=20
+const YEAR_WEIGHTS = [25, 28, 30, 28, 25, 20];
 // SOS label → numeric score (0–100)
 const SOS_SCORE_MAP = {
   "Elite":95,"Strong":80,"Average":60,"Weak":40,"Very Weak":20,"FCS":10,"N/A":60
@@ -5235,7 +5235,7 @@ function buildProspectScore(formOrSeasons, isMultiSeason = false, athleticInputs
   const seasons = isMultiSeason ? formOrSeasons : [formOrSeasons];
   const fields  = isMultiSeason ? (athleticInputs || {}) : formOrSeasons;
 
-  // Step 3: multi-year weighted composite (YR1=25,YR2=28,YR3=30,YR4=28,YR5=25)
+  // Step 3: multi-year weighted composite (YR1=25,YR2=28,YR3=30,YR4=28,YR5=25,YR6=20)
   const seasonScores = seasons.map((s, i) => ({
     score: calcSeasonProdScore(s, s.conference || fields.conference),
     yearWeight: YEAR_WEIGHTS[i] || 25,
@@ -5279,7 +5279,7 @@ const EMPTY_FORM = {
   // Identity
   name:"", draft_class:"2026", school:"", conference:"SEC", came_out_as:"",
   draft_round:"1", draft_pick:"", is_projection:false,
-  // Season stats (up to 4 seasons)
+  // Season stats
   seasons: [
     {n:1, yr:"", school:"", conf_mult:"", attempts:"", rush_yds:"", ypa:"", rush_tds:"",
      fumbles:"", mtf:"", ten_plus:"", fif_plus:"", bay:"", bay_pct:"",
@@ -5420,7 +5420,7 @@ function AddPlayerModal({onClose, onAdd, existingPlayers, sosByYear={}, currentP
     return {...f, seasons};
   });
   const addSeason = () => {
-    if (form.seasons.length >= 5) return;
+    if (form.seasons.length >= 6) return;
     setForm(f => ({...f, seasons: [...f.seasons, {...EMPTY_FORM.seasons[0], n: f.seasons.length+1}]}));
   };
   const removeSeason = idx => setForm(f => ({
@@ -6326,7 +6326,7 @@ function AddPlayerModal({onClose, onAdd, existingPlayers, sosByYear={}, currentP
                 </div></div>)
 }</div>
             ))}
-            {form.seasons.length < 5 && (
+            {form.seasons.length < 6 && (
               <button onClick={addSeason} style={{width:"100%",background:"rgba(77,166,255,0.07)",border:"1px dashed rgba(77,166,255,0.25)",borderRadius:8,color:"#4da6ff",padding:"10px",fontSize:10,letterSpacing:2}}>
                 + ADD SEASON {form.seasons.length+1}
               </button>
@@ -7413,6 +7413,68 @@ function EditPlayerModal({onClose, onSave, allData, existingOverrides={}, sosByY
       })
     }));
   };
+
+  const addSeason = () => {
+    setForm((prev) => {
+      if (!prev) return prev;
+      const seasons = Array.isArray(prev.seasons) ? prev.seasons : [];
+      if (seasons.length >= 6) return prev;
+      const nextN = seasons.length + 1;
+      const emptySeason = {
+        n: nextN,
+        yr: "",
+        school: "",
+        school_other: "",
+        conf: "",
+        sos_label: "Average",
+        sos_rank: "",
+        sos_mag: "",
+        redshirt: false,
+        attempts: "",
+        rush_yds: "",
+        ypa: "",
+        rush_tds: "",
+        fumbles: "",
+        run_grade: "",
+        yco_a: "",
+        mtf: "",
+        mtf_a: "",
+        ten_plus: "",
+        ten_plus_a: "",
+        fif_plus: "",
+        fifteen_plus: "",
+        fifteen_plus_a: "",
+        bay: "",
+        bay_pct: "",
+        first_downs: "",
+        first_downs_a: "",
+        elu: "",
+        ydom: "",
+        tddom: "",
+        targets: "",
+        receptions: "",
+        rec_pct: "",
+        rec_yds: "",
+        yds_per_rec: "",
+        rec_tds: "",
+        recv_grade: "",
+        recv_snaps: "",
+        yac_raw: "",
+        yac_rec: "",
+        y_rr: "",
+        adot: "",
+        mtf_recv: "",
+        mtf_rec: "",
+        rush_score: "",
+        recv_score: "",
+        adj_score: "",
+      };
+      return {
+        ...prev,
+        seasons: [...seasons, emptySeason],
+      };
+    });
+  };
   
   const derivedTransfers = React.useMemo(() => {
     const moves = [];
@@ -7853,6 +7915,11 @@ function EditPlayerModal({onClose, onSave, allData, existingOverrides={}, sosByY
                                 })()}
                               </div>
                             ))}
+                            {form.seasons.length < 6 && (
+                              <button onClick={addSeason} style={{width:"100%",background:"rgba(77,166,255,0.07)",border:"1px dashed rgba(77,166,255,0.25)",borderRadius:8,color:"#4da6ff",padding:"10px",fontSize:10,letterSpacing:2}}>
+                                + ADD SEASON {form.seasons.length + 1}
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
