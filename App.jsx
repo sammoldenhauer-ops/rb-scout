@@ -7200,25 +7200,10 @@ function EditPlayerModal({onClose, onSave, allData, existingOverrides={}, sosByY
     const origPff = toNum(originalScore.pff_score) ?? 0;
     const pff = toNum(pffScoreFromBoardRank(form.pff_board_rank) || form.pff_score) ?? 0;
 
-    // Recalculate prod_trajectory live from form seasons whenever any season's
-    // scores were cleared by an edit (setSeason clears rush_score/recv_score/adj_score).
-    const editedSeasons = form.seasons || [];
-    const hasEditedSeasons = editedSeasons.some(
-      s => s.rush_score === '' || s.recv_score === '' || s.adj_score === ''
-    );
     let prod = origProd;
-    if (hasEditedSeasons) {
-      const seasonScores = editedSeasons.map((s, i) => {
-        const conf = s.conference || s.conf || form.conference || "Other";
-        const normalized = normalizeSeasonForScoring({ ...s, conference: conf });
-        return { score: calcSeasonProdScore(normalized, conf), weight: YEAR_WEIGHTS[i] || 25 };
-      }).filter(s => Number.isFinite(s.score) && s.score > 0);
-      if (seasonScores.length > 0) {
-        const tw = seasonScores.reduce((sum, s) => sum + s.weight, 0);
-        prod = Math.round((seasonScores.reduce((sum, s) => sum + s.score * s.weight, 0) / tw) * 10) / 10;
-      }
-    }
-
+    // Don't recalculate prod_trajectory in preview — let it update after save via ALL_DATA
+    // This avoids issues with intermediate empty values during form edits
+    
     const prospectScore = Math.min(100, Math.round(
       (origProspect + (pff - origPff) * 0.15 + (prod - origProd) * 0.45) * 10
     ) / 10);
@@ -7229,7 +7214,7 @@ function EditPlayerModal({onClose, onSave, allData, existingOverrides={}, sosByY
       pff_score: Math.round(pff * 10) / 10,
       tier: scoreToTier(prospectScore),
     };
-  }, [form?.pff_board_rank, form?.pff_score, form?.seasons, form?.conference, originalScore]);
+  }, [form?.pff_board_rank, form?.pff_score, originalScore]);
 
   const next = () => {
     if (step < 4) setStep(step + 1);
