@@ -2567,7 +2567,7 @@ function NFLPanel({nfl, accent, isDraftClass, projT12, projT24, projT12Rank, pro
             </div>
             {yr6RarityPenaltyApplied && (
               <div style={{fontSize:10,color:"#f0c040",lineHeight:1.5,marginBottom:10,padding:"8px 10px",border:"1px solid rgba(240,192,64,0.25)",borderRadius:7,background:"rgba(240,192,64,0.06)"}}>
-                YR6 rarity penalty applied: this profile is intentionally suppressed until at least 40 YR6 players exist in the sample.
+                YR6 rarity penalty applied: this profile is intentionally suppressed until at least 20 YR6 players exist in the sample.
               </div>
             )}
             <div style={{display:"flex",gap:8}}>
@@ -2620,7 +2620,7 @@ function NFLPanel({nfl, accent, isDraftClass, projT12, projT24, projT12Rank, pro
             </div>
             {yr6RarityPenaltyApplied && (
               <div style={{fontSize:10,color:"#f0c040",lineHeight:1.5,marginBottom:10,padding:"8px 10px",border:"1px solid rgba(240,192,64,0.25)",borderRadius:7,background:"rgba(240,192,64,0.06)"}}>
-                YR6 rarity penalty applied: this profile is intentionally suppressed until at least 40 YR6 players exist in the sample.
+                YR6 rarity penalty applied: this profile is intentionally suppressed until at least 20 YR6 players exist in the sample.
               </div>
             )}
             <div style={{display:"flex",gap:8}}>
@@ -2656,7 +2656,7 @@ function NFLPanel({nfl, accent, isDraftClass, projT12, projT24, projT12Rank, pro
           </div>
           {yr6RarityPenaltyApplied && (
             <div style={{fontSize:10,color:"#f0c040",lineHeight:1.5,marginBottom:10,padding:"8px 10px",border:"1px solid rgba(240,192,64,0.25)",borderRadius:7,background:"rgba(240,192,64,0.06)"}}>
-              YR6 rarity penalty applied: this profile is intentionally suppressed until at least 40 YR6 players exist in the sample.
+              YR6 rarity penalty applied: this profile is intentionally suppressed until at least 20 YR6 players exist in the sample.
             </div>
           )}
           <div style={{display:"flex",gap:8,marginBottom:4}}>
@@ -2850,7 +2850,7 @@ function TrajectoryTiles({data, accent, recruiting}) {
     <div style={{marginBottom:14}}>
       {hasUntrustedYr6 && (
         <div style={{background:"rgba(77,166,255,0.08)",border:"1px solid rgba(77,166,255,0.25)",borderRadius:7,padding:"8px 12px",marginBottom:8,fontSize:10,color:"#4da6ff"}}>
-          YR6 is displayed but excluded from derived analytics until at least 40 YR6 players exist.
+          YR6 is displayed but excluded from derived analytics until at least 20 YR6 players exist.
         </div>
       )}
       {/* 2×2 tile grid — order preserved: Peak | Final / Improvement | Consistency */}
@@ -4742,12 +4742,6 @@ function CompareModal({onClose, allNames, allData, selections, onChangeSelection
     const compEntries = overallComps.slice(0, compTargets.length);
     if (!compEntries.length) return;
 
-    const willOverwrite = compTargets.some((idx) => selections[idx] && selections[idx] !== compEntries[compTargets.indexOf(idx)]?.name);
-    if (willOverwrite) {
-      const ok = window.confirm(`Replace the current comparison players with ${compEntries.map((entry) => entry.name).join(" and ")}?`);
-      if (!ok) return;
-    }
-
     const nextSelections = [...selections];
     const nextInputs = [...inputs];
     const nextMeta = {};
@@ -5327,7 +5321,7 @@ const RECV_STAT_WEIGHTS = {
 // Year weights: YR1=25, YR2=28, YR3=30, YR4=28, YR5=25, YR6=20
 const YEAR_WEIGHTS = [25, 28, 30, 28, 25, 20];
 const YR6_CONFIDENCE_START = 0.10;
-const YR6_CONFIDENCE_FULL_SAMPLE = 40;
+const YR6_CONFIDENCE_FULL_SAMPLE = 20;
 
 function hasSeasonStatRow(playerSeasons, seasonNumber) {
   const row = (playerSeasons && (playerSeasons[String(seasonNumber)] || playerSeasons[seasonNumber])) || null;
