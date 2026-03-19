@@ -9570,7 +9570,7 @@ function App() {
               <div style={{fontSize:8,color:"#333",letterSpacing:3,marginTop:3,marginBottom:3}}>COLLEGE RB PROSPECT MODEL · V6</div>
               <div style={{fontSize:9,color:"#444",marginTop:1}}>{Object.keys(ALL_DATA).length} prospects · 2017–{currentProjectionClass} · Prod 75% · Athl 10% · PFF 15%</div>
               <div style={{fontSize:10,color:"#4da6ff",marginTop:6,letterSpacing:1.2}}>CURRENT CLASS · {currentProjectionClass}</div>
-              <div style={{fontSize:10,color:"#9aa7ba",marginTop:4,letterSpacing:0.6}}>Season stats powered by PFF.</div>
+              <div style={{fontSize:10,color:"#9aa7ba",marginTop:4,letterSpacing:0.6}}>Season stats powered by PFF</div>
             </div>
             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",justifyContent:"center",flexShrink:0,width:"100%"}}>
               <button onClick={()=>setShowVal(true)} style={{background:"rgba(240,192,64,0.08)",border:"1px solid rgba(240,192,64,0.3)",color:"#f0c040",padding:"6px 10px",borderRadius:7,fontSize:8,letterSpacing:1.5}}>
