@@ -7240,8 +7240,11 @@ function EditPlayerModal({onClose, onSave, allData, existingOverrides={}, sosByY
       const prod = toNum(previewScore.prod_trajectory);
       const athl = toNum(previewScore.athl_score);
       if (ps != null) cleaned.prospect_score = ps;
-      if (prod != null) cleaned.prod_trajectory = prod;
-      if (athl != null) cleaned.athl_score = athl;
+      // Don't save prod_trajectory or athl_score as fixed overrides if seasons changed —
+      // let ALL_DATA recalculate them from the new season data instead
+      const seasonsWillChange = initialSeasonSigRef.current !== buildSeasonSignature(form.seasons || []);
+      if (prod != null && !seasonsWillChange) cleaned.prod_trajectory = prod;
+      if (athl != null && !seasonsWillChange) cleaned.athl_score = athl;
       cleaned.tier = previewScore.tier || (ps != null ? scoreToTier(ps) : undefined);
     }
 
