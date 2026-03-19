@@ -444,10 +444,74 @@ const SEASON_RAW_DERIVED_DISTS = (() => {
 
 const LOWER_BETTER_STATS = new Set(["FUM"]);
 
+function getCombinedSeasonStatValues(sn, statIdx) {
+  const seasonNumber = Number(sn);
+  if (!Number.isFinite(seasonNumber) || !Number.isFinite(statIdx)) return [];
+
+  const baseVals = (SEASON_STAT_DISTS[seasonNumber] && SEASON_STAT_DISTS[seasonNumber][statIdx]) || [];
+  const customVals = [];
+
+  Object.values(_customSS || {}).forEach((playerSeasons) => {
+    const row = (playerSeasons && (playerSeasons[String(seasonNumber)] || playerSeasons[seasonNumber])) || null;
+    if (!Array.isArray(row)) return;
+    const pair = row[statIdx];
+    const raw = Array.isArray(pair) ? pair[0] : null;
+    if (raw == null) return;
+    const n = Number(raw);
+    if (Number.isFinite(n)) customVals.push(n);
+  });
+
+  return [...baseVals, ...customVals];
+}
+
+function getCombinedSeasonRawDerivedValues(sn, rawDistKey) {
+  const seasonNumber = Number(sn);
+  if (!Number.isFinite(seasonNumber) || !rawDistKey) return [];
+
+  const baseVals = (SEASON_RAW_DERIVED_DISTS[seasonNumber] && SEASON_RAW_DERIVED_DISTS[seasonNumber][rawDistKey]) || [];
+  const customVals = [];
+
+  Object.values(_customSS || {}).forEach((playerSeasons) => {
+    const row = (playerSeasons && (playerSeasons[String(seasonNumber)] || playerSeasons[seasonNumber])) || null;
+    if (!Array.isArray(row)) return;
+    const get = (idx) => {
+      const pair = row[idx];
+      const v = Array.isArray(pair) ? pair[0] : null;
+      return Number.isFinite(Number(v)) ? Number(v) : null;
+    };
+
+    const att = get(STAT_IDX["ATT"]);
+    const yds = get(STAT_IDX["YDS"]);
+    const rec = get(STAT_IDX["REC"]);
+    const ycoA = get(STAT_IDX["YCO/A"]);
+    const mtfA = get(STAT_IDX["MTF/A"]);
+    const tenA = get(STAT_IDX["10+/A"]);
+    const fifA = get(STAT_IDX["15+/A"]);
+    const bayPct = get(STAT_IDX["BAY%"]);
+    const fdA = get(STAT_IDX["1D/A"]);
+    const yacRec = get(STAT_IDX["YAC/REC"]);
+    const mtfRec = get(STAT_IDX["MTF/REC"]);
+
+    let val = null;
+    if (rawDistKey === "raw_yco" && att != null && ycoA != null) val = ycoA * att;
+    else if (rawDistKey === "raw_mtf" && att != null && mtfA != null) val = mtfA * att;
+    else if (rawDistKey === "raw_ten_plus" && att != null && tenA != null) val = tenA * att;
+    else if (rawDistKey === "raw_fif_plus" && att != null && fifA != null) val = fifA * att;
+    else if (rawDistKey === "raw_bay" && yds != null && bayPct != null) val = (bayPct / 100) * yds;
+    else if (rawDistKey === "raw_first_downs" && att != null && fdA != null) val = fdA * att;
+    else if (rawDistKey === "raw_yac" && rec != null && yacRec != null) val = yacRec * rec;
+    else if (rawDistKey === "raw_mtf_recv" && rec != null && mtfRec != null) val = mtfRec * rec;
+
+    if (Number.isFinite(val)) customVals.push(val);
+  });
+
+  return [...baseVals, ...customVals];
+}
+
 function getSeasonStatPercentile(sn, statIdx, rawVal, statKey){
   if (rawVal==null) return null;
-  const vals = SEASON_STAT_DISTS[Number(sn)] && SEASON_STAT_DISTS[Number(sn)][statIdx];
-  if (!vals || !vals.length) return null;
+  const vals = getCombinedSeasonStatValues(sn, statIdx);
+  if (!vals || !vals.length) return 100;
   if (LOWER_BETTER_STATS.has(statKey)) {
     const ge = vals.reduce((acc,v)=>acc + (v >= rawVal ? 1 : 0), 0);
     return (ge / vals.length) * 100;
@@ -539,8 +603,8 @@ function getModalInputPercentileMeta(season, fieldKey, seasonNumber) {
 
   if (rawVal == null || !Number.isFinite(rawVal)) return null;
   if (rawDistKey) {
-    const vals = SEASON_RAW_DERIVED_DISTS[sn] && SEASON_RAW_DERIVED_DISTS[sn][rawDistKey];
-    if (!vals || !vals.length) return null;
+    const vals = getCombinedSeasonRawDerivedValues(sn, rawDistKey);
+    if (!vals || !vals.length) return { pct: 100, inverted: false };
     const le = vals.reduce((acc, v) => acc + (v <= rawVal ? 1 : 0), 0);
     return { pct: (le / vals.length) * 100, inverted: false };
   }
@@ -551,8 +615,8 @@ function getSeasonRawDerivedPercentile(sn, rawDistKey, rawVal) {
   const seasonNumber = Number(sn);
   const value = Number(rawVal);
   if (!Number.isFinite(seasonNumber) || !Number.isFinite(value)) return null;
-  const vals = SEASON_RAW_DERIVED_DISTS[seasonNumber] && SEASON_RAW_DERIVED_DISTS[seasonNumber][rawDistKey];
-  if (!vals || !vals.length) return null;
+  const vals = getCombinedSeasonRawDerivedValues(seasonNumber, rawDistKey);
+  if (!vals || !vals.length) return 100;
   const le = vals.reduce((acc, v) => acc + (v <= value ? 1 : 0), 0);
   return (le / vals.length) * 100;
 }
@@ -9123,40 +9187,45 @@ function App() {
     for (const [name, data] of Object.entries(mergedBase)) {
       if (deletedLookup[name]) continue;
       const edit = playerOverrides[name];
-      if (!edit) {
+      const runtimeSeasonStats = asObj(customSeasons)[name];
+      const hasRuntimeSeasonStats = runtimeSeasonStats && typeof runtimeSeasonStats === "object" && Object.keys(runtimeSeasonStats).length > 0;
+      const shouldRebuildCustomFromRuntime = !!(data?._custom && hasRuntimeSeasonStats);
+      if (!edit && !shouldRebuildCustomFromRuntime) {
         merged[name] = data;
         continue;
       }
 
+      const editData = (edit && typeof edit === "object") ? edit : {};
+
       const next = {...data};
 
-      const fixedProd = toNum(edit.prod_trajectory);
-      const fixedAthl = toNum(edit.athl_score);
-      const fixedProspect = toNum(edit.prospect_score);
-      const fixedTier = typeof edit.tier === "string" ? edit.tier : null;
+      const fixedProd = toNum(editData.prod_trajectory);
+      const fixedAthl = toNum(editData.athl_score);
+      const fixedProspect = toNum(editData.prospect_score);
+      const fixedTier = typeof editData.tier === "string" ? editData.tier : null;
 
-      const pff = toNum(edit.pff_score);
+      const pff = toNum(editData.pff_score);
       if (pff != null) next.pff_score = pff;
-      if (typeof edit.transfer_to === "string") next.transfer_to = edit.transfer_to || null;
-      if (edit.draft_round != null) {
-        const draftRoundVal = String(edit.draft_round) === "UDFA" ? "UDFA" : Number(edit.draft_round);
+      if (typeof editData.transfer_to === "string") next.transfer_to = editData.transfer_to || null;
+      if (editData.draft_round != null) {
+        const draftRoundVal = String(editData.draft_round) === "UDFA" ? "UDFA" : Number(editData.draft_round);
         next.draft_round = draftRoundVal;
         next.nfl = {...(next.nfl||{}), draft_round: draftRoundVal};
       }
-      if (edit.draft_pick != null) {
-        next.draft_pick = Number(edit.draft_pick);
-        next.nfl = {...(next.nfl||{}), draft_pick: Number(edit.draft_pick)};
+      if (editData.draft_pick != null) {
+        next.draft_pick = Number(editData.draft_pick);
+        next.nfl = {...(next.nfl||{}), draft_pick: Number(editData.draft_pick)};
       }
-      if (typeof edit.is_projection === "boolean") next.is_projection = edit.is_projection;
+      if (typeof editData.is_projection === "boolean") next.is_projection = editData.is_projection;
 
-      if (edit.recruiting && typeof edit.recruiting === "object") {
-        next.recruiting = {...(next.recruiting || {}), ...edit.recruiting};
+      if (editData.recruiting && typeof editData.recruiting === "object") {
+        next.recruiting = {...(next.recruiting || {}), ...editData.recruiting};
       }
 
-      if (edit.athletic && typeof edit.athletic === "object") {
+      if (editData.athletic && typeof editData.athletic === "object") {
         const ath = {...(next.athletic || {})};
         const applyAth = (key, aliases=[]) => {
-          const n = toNum(edit.athletic[key]);
+          const n = toNum(editData.athletic[key]);
           if (n == null) return;
           const baseSlot = ath[key];
           ath[key] = baseSlot && typeof baseSlot === "object" ? {...baseSlot, val:n} : {val:n, rank:null, total:null, comp:null};
@@ -9179,7 +9248,7 @@ function App() {
         applyAth("three_cone", ["3cone"]);
         applyAth("shuttle");
 
-        const rasVal = toNum(edit.athletic.ras);
+        const rasVal = toNum(editData.athletic.ras);
         if (rasVal != null) {
           next.ras = rasVal;
           ath.ras = ath.ras && typeof ath.ras === "object" ? {...ath.ras, val:rasVal} : {val:rasVal, rank:null, total:null, comp:null};
@@ -9188,15 +9257,15 @@ function App() {
         next.athletic = ath;
       }
 
-      const hasEditSeasonStats = !!(edit.seasonStats && typeof edit.seasonStats === "object");
-      const hasEditSeasonMeta = Array.isArray(edit.seasons) && edit.seasons.length > 0;
-      const shouldRebuildSeasonMetrics = hasEditSeasonStats || hasEditSeasonMeta;
+      const hasEditSeasonStats = !!(editData.seasonStats && typeof editData.seasonStats === "object");
+      const hasEditSeasonMeta = Array.isArray(editData.seasons) && editData.seasons.length > 0;
+      const shouldRebuildSeasonMetrics = hasEditSeasonStats || hasEditSeasonMeta || shouldRebuildCustomFromRuntime;
       const ssData = hasEditSeasonStats
-        ? edit.seasonStats
-        : ((SEASON_STATS && SEASON_STATS[name]) || {});
+        ? editData.seasonStats
+        : (hasRuntimeSeasonStats ? runtimeSeasonStats : ((SEASON_STATS && SEASON_STATS[name]) || {}));
       const metaByN = {};
       (Array.isArray(next.seasons) ? next.seasons : []).forEach((s) => { if (s?.n != null) metaByN[Number(s.n)] = {...s}; });
-      (Array.isArray(edit.seasons) ? edit.seasons : []).forEach((s) => {
+      (Array.isArray(editData.seasons) ? editData.seasons : []).forEach((s) => {
         const n = Number(s?.n);
         if (!Number.isFinite(n)) return;
         metaByN[n] = {...(metaByN[n] || {n}), ...s};
