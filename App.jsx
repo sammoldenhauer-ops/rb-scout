@@ -780,9 +780,29 @@ function SOSBadge({season}) {
   );
 }
 
-function SeasonStatTable({playerName, seasons, accent}) {
+function SeasonStatTable({playerName, seasons, accent, allData}) {
   const [group,setGroup] = useState("rush");
   const ssData = (_customSS&&_customSS[playerName]) || (SEASON_STATS&&SEASON_STATS[playerName]) || {};
+  const seasonScoreRanks = React.useMemo(() => {
+    const byN = {};
+    Object.entries(allData || ALL_PLAYERS || {}).forEach(([name, p]) => {
+      (p?.seasons || []).forEach((s) => {
+        const n = Number(s?.n);
+        if (!Number.isFinite(n)) return;
+        if (!byN[n]) byN[n] = { rush: [], recv: [], adj: [] };
+        if (s.rush_score != null) byN[n].rush.push({ name, score: Number(s.rush_score) });
+        if (s.recv_score != null) byN[n].recv.push({ name, score: Number(s.recv_score) });
+        const adjScore = s.adj_score != null ? Number(s.adj_score) : Number(s.c);
+        if (Number.isFinite(adjScore)) byN[n].adj.push({ name, score: adjScore });
+      });
+    });
+    Object.values(byN).forEach((d) => {
+      d.rush.sort((a, b) => b.score - a.score);
+      d.recv.sort((a, b) => b.score - a.score);
+      d.adj.sort((a, b) => b.score - a.score);
+    });
+    return byN;
+  }, [allData]);
   const seasonKeys = Object.keys(ssData).map(Number).sort();
   const metaByN = {};
   (seasons||[]).forEach(s=>{metaByN[s.n]=s;});
@@ -810,7 +830,7 @@ function SeasonStatTable({playerName, seasons, accent}) {
               <th style={{textAlign:"left",padding:"5px 8px",color:"#555",fontSize:11,minWidth:130,position:"sticky",left:0,background:"rgba(8,12,20,0.97)"}}>STAT</th>
               {seasonKeys.map(sn=>{
                 const meta=metaByN[sn];
-                const ranks=SEASON_SCORE_RANKS[sn]||{rush:[],recv:[]};
+                const ranks=seasonScoreRanks[sn]||{rush:[],recv:[]};
                 const rushRank=(ranks.rush.findIndex(r=>r.name===playerName)+1)||null;
                 const recvRank=(ranks.recv.findIndex(r=>r.name===playerName)+1)||null;
                 const rushTotal=ranks.rush.length;
@@ -3020,7 +3040,7 @@ function PlayerCard({player, data, onClose, onSelectPlayer, onBack, allData}) {
                 )}
               </div>
               <div style={{height:1,background:"rgba(255,255,255,0.05)",marginBottom:16}}/>
-              <SeasonStatTable playerName={player} seasons={data.seasons} accent={accent}/>
+              <SeasonStatTable playerName={player} seasons={data.seasons} accent={accent} allData={allData}/>
             </div>
           )}
           {tab==="athletic"&&<AthleticPanel data={data} accent={accent} playerName={player}/>}
@@ -5414,6 +5434,10 @@ function AddPlayerModal({onClose, onAdd, existingPlayers, sosByYear={}, currentP
 
   const handleSave = () => {
     const scores = getAddModalScores();
+    const numOrNull = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
 
     // Normalize each form season (compute per-attempt / per-reception ratios)
     const normalizedFormSeasons = form.seasons.map(s => {
@@ -5446,6 +5470,30 @@ function AddPlayerModal({onClose, onAdd, existingPlayers, sosByYear={}, currentP
     const nonRedshirtAdjScores = nonRedshirtIdxs.map(i => seasonBreakdowns[i].adjProd);
     const traj_peak  = nonRedshirtAdjScores.length > 0 ? Math.round(Math.max(...nonRedshirtAdjScores) * 10) / 10 : scores.prod_trajectory;
     const traj_final = nonRedshirtAdjScores.length > 0 ? Math.round(nonRedshirtAdjScores[nonRedshirtAdjScores.length - 1] * 10) / 10 : scores.prod_trajectory;
+    const slope = (arr) => {
+      if (!Array.isArray(arr) || arr.length < 2) return 0;
+      const n = arr.length;
+      const meanX = (n - 1) / 2;
+      const meanY = arr.reduce((a, b) => a + b, 0) / n;
+      let num = 0;
+      let den = 0;
+      for (let i = 0; i < n; i++) {
+        const dx = i - meanX;
+        const dy = arr[i] - meanY;
+        num += dx * dy;
+        den += dx * dx;
+      }
+      return den ? (num / den) : 0;
+    };
+    const stdDev = (arr) => {
+      if (!Array.isArray(arr) || !arr.length) return 0;
+      const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+      const varr = arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length;
+      return Math.sqrt(varr);
+    };
+    const clamp = (v, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
+    const traj_improvement = Math.round(clamp(50 + slope(nonRedshirtAdjScores) * 1.8) * 10) / 10;
+    const traj_consistency = Math.round(clamp(100 - stdDev(nonRedshirtAdjScores) * 2.0) * 10) / 10;
 
     // Build seasons with all raw stats, normalized ratios, and computed scores
     const seasons = form.seasons.map((s, idx) => {
@@ -5464,30 +5512,30 @@ function AddPlayerModal({onClose, onAdd, existingPlayers, sosByYear={}, currentP
         conference: form.conference,
         redshirt: isRs,
         // Raw rushing stats
-        attempts:    parseFloat(s.attempts)   || null,
-        rush_yds:    parseFloat(s.rush_yds)   || null,
-        rush_tds:    parseFloat(s.rush_tds)   || null,
-        fumbles:     parseFloat(s.fumbles)    || null,
-        run_grade:   parseFloat(s.run_grade)  || null,
-        elu:         parseFloat(s.elu)        || null,
-        ydom:        parseFloat(s.ydom)       || null,
-        tddom:       parseFloat(s.tddom)      || null,
+        attempts:    numOrNull(s.attempts),
+        rush_yds:    numOrNull(s.rush_yds),
+        rush_tds:    numOrNull(s.rush_tds),
+        fumbles:     numOrNull(s.fumbles),
+        run_grade:   numOrNull(s.run_grade),
+        elu:         numOrNull(s.elu),
+        ydom:        numOrNull(s.ydom),
+        tddom:       numOrNull(s.tddom),
         // Raw receiving stats
-        targets:     parseFloat(s.targets)    || null,
-        receptions:  parseFloat(s.receptions) || null,
-        rec_yds:     parseFloat(s.rec_yds)    || null,
-        rec_tds:     parseFloat(s.rec_tds)    || null,
-        recv_grade:  parseFloat(s.recv_grade) || null,
-        recv_snaps:  parseFloat(s.recv_snaps) || null,
-        adot:        parseFloat(s.adot)       || null,
+        targets:     numOrNull(s.targets),
+        receptions:  numOrNull(s.receptions),
+        rec_yds:     numOrNull(s.rec_yds),
+        rec_tds:     numOrNull(s.rec_tds),
+        recv_grade:  numOrNull(s.recv_grade),
+        recv_snaps:  numOrNull(s.recv_snaps),
+        adot:        numOrNull(s.adot),
         // Raw counting totals (preserved for re-normalization)
-        mtf:         parseFloat(s.mtf)        || null,
-        ten_plus:    parseFloat(s.ten_plus)   || null,
-        fif_plus:    parseFloat(s.fif_plus)   || null,
-        bay:         parseFloat(s.bay)        || null,
-        first_downs: parseFloat(s.first_downs)|| null,
-        yac_raw:     parseFloat(s.yac_raw)    || null,
-        mtf_recv:    parseFloat(s.mtf_recv)   || null,
+        mtf:         numOrNull(s.mtf),
+        ten_plus:    numOrNull(s.ten_plus),
+        fif_plus:    numOrNull(s.fif_plus),
+        bay:         numOrNull(s.bay),
+        first_downs: numOrNull(s.first_downs),
+        yac_raw:     numOrNull(s.yac_raw),
+        mtf_recv:    numOrNull(s.mtf_recv),
         // Computed per-attempt / per-reception ratios
         ypa:            ns.ypa            || null,
         yco_a:          ns.yco_a          || null,
@@ -5514,6 +5562,43 @@ function AddPlayerModal({onClose, onAdd, existingPlayers, sosByYear={}, currentP
         sos_mag:   isFcsOther ? 0    : (s.sos_mag   ? parseFloat(s.sos_mag)   : null),
       };
     });
+
+    const buildAddPlayerScoutNotes = () => {
+      const sosLabels = seasons.filter((s) => !s.redshirt).map((s) => String(s.sos_label || "Average"));
+      const strongSoSCount = sosLabels.filter((x) => x === "Strong" || x === "Elite").length;
+      const weakSoSCount = sosLabels.filter((x) => x === "Weak" || x === "Very Weak" || x === "FCS").length;
+      const seasonCount = Math.max(0, nonRedshirtIdxs.length);
+
+      const strengths = [
+        `Production trajectory of ${scores.prod_trajectory.toFixed(1)} gives this profile a stable baseline relative to peers in the class. The scoring mix across rushing and receiving indicates usable offensive value beyond a single-game-script role.`,
+        `Rushing (${rush_trajectory.toFixed(1)}) and receiving (${recv_trajectory.toFixed(1)}) trajectories show where this player can win at the next level. A balanced profile generally creates more lineup pathways for NFL coaching staffs than a one-dimensional usage projection.`,
+        strongSoSCount > 0
+          ? `A meaningful share of active seasons came against strong schedule competition, which improves confidence in the underlying production translation. Output earned versus better opponents is typically more predictive than inflated volume against overmatched defenses.`
+          : `The season history provides enough signal to establish a functional projection baseline for role evaluation. Even without a perfect opponent profile, multi-season evidence is valuable when paired with trajectory and efficiency context.`,
+      ];
+
+      const weaknesses = [
+        scores.prod_trajectory < 55
+          ? `Production trajectory currently grades below ideal starter thresholds at ${scores.prod_trajectory.toFixed(1)}. To outplay that baseline in the NFL, role fit and early usage efficiency will need to compensate quickly.`
+          : `Even with a workable production baseline, this profile still carries normal transition risk against NFL speed and defensive structure. Early-down viability alone is rarely enough without parallel passing-game trust.`
+        ,
+        traj_improvement < 48
+          ? `Improvement score of ${traj_improvement.toFixed(1)} suggests a flatter or less upward development arc than preferred. Developmental slope matters because players still climbing late in college tend to retain more growth runway.`
+          : `Consistency score of ${traj_consistency.toFixed(1)} can still mask role volatility if weekly usage changes by game script. Stable fantasy/NFL outcomes usually require both efficiency and predictable touch deployment.`
+        ,
+        weakSoSCount > strongSoSCount
+          ? `Strength-of-schedule context introduces caution because a larger share of seasons came against weaker competition bands. Replication against faster, more physical defensive fronts remains the key validation step.`
+          : (seasonCount < 3
+            ? `Limited active-season sample (${seasonCount}) increases projection uncertainty, even when per-season scores look solid. Smaller samples carry higher variance and require cleaner role/scheme alignment early.`
+            : `Scheme and deployment fit will play an outsized role in whether this profile reaches its percentile outcomes. Players in this tier often separate by landing spot details as much as raw talent.`),
+      ];
+
+      return {
+        strengths: strengths.slice(0, 3),
+        weaknesses: weaknesses.slice(0, 3),
+      };
+    };
+    const scoutNotes = buildAddPlayerScoutNotes();
 
     // Athletic metrics: compute ranks by closeness to ideal RB athletic profile
     const IDEAL_ATHL = {
@@ -5565,8 +5650,9 @@ function AddPlayerModal({onClose, onAdd, existingPlayers, sosByYear={}, currentP
       recruit_state:    parseInt(form.recruit_state)    || null,
       recruit_school:   recruitSchool || null,
       recruit_year:     form.recruit_year               || null,
-      scout_strengths:  null,
-      scout_weaknesses: null,
+      redshirt:         !!form.seasons?.some((s) => s.redshirt),
+      scout_strengths:  scoutNotes.strengths,
+      scout_weaknesses: scoutNotes.weaknesses,
     };
 
     const newPlayer = {
@@ -5582,8 +5668,8 @@ function AddPlayerModal({onClose, onAdd, existingPlayers, sosByYear={}, currentP
       pff_rank: null,
       traj_peak,
       traj_final,
-      traj_improvement: 50,
-      traj_consistency: 70,
+      traj_improvement,
+      traj_consistency,
       declare_bonus: 0,
       transfer_bonus: 0,
       num_seasons:  nonRedshirtIdxs.length,
