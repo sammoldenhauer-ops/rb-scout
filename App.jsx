@@ -2798,10 +2798,6 @@ function buildUnifiedScoutNotes({ data, seasons = [] }) {
     const n = Number(v);
     return Number.isFinite(n) ? n : null;
   };
-  const pushUnique = (arr, text) => {
-    if (!text || arr.includes(text)) return;
-    arr.push(text);
-  };
 
   const activeSeasons = (Array.isArray(seasons) ? seasons : []).filter((s) => !s?.redshirt);
   const seasonCount = activeSeasons.length || Number(data?.num_seasons) || 0;
@@ -2817,67 +2813,117 @@ function buildUnifiedScoutNotes({ data, seasons = [] }) {
   const consistency = toNum(data?.traj_consistency);
   const improvement = toNum(data?.traj_improvement);
 
-  const strengthsOut = [];
-  const weaknessesOut = [];
+  const strengths = [];
+  const weaknesses = [];
 
-  if (prod != null) {
-    if (prod >= 60) pushUnique(strengthsOut, `Strong overall production trajectory (${prod.toFixed(1)}) provides a clear NFL projection baseline.`);
-    else if (prod < 52) pushUnique(weaknessesOut, `Overall production trajectory is below target (${prod.toFixed(1)}), leaving less margin for projection error.`);
+  // Generate 2-3 sentence narratives for strengths
+  if (prod != null && prod >= 60) {
+    strengths.push(
+      `Strong overall production trajectory of ${prod.toFixed(1)}, indicating translatable college output that can support an early NFL role. The scoring mix across rushing and receiving creates multiple pathways for offensive deployment. This production baseline provides solid confidence in the underlying ability level.`
+    );
   }
-  if (rush != null) {
-    if (rush >= 60) pushUnique(strengthsOut, `Rushing profile is a clear plus (${rush.toFixed(1)}), with evidence of sustainable ground-game impact.`);
-    else if (rush < 52) pushUnique(weaknessesOut, `Rushing trajectory (${rush.toFixed(1)}) is below starter-caliber thresholds in this model.`);
+  if (rush != null && rush >= 60) {
+    strengths.push(
+      `Rushing profile is a genuine plus at ${rush.toFixed(1)}, with evidence of sustainable ground-game impact across his college career. The volume and efficiency he displayed provides a reliable baseline for NFL projection. This rushing foundation allows for expanded offensive opportunity once drafted.`
+    );
   }
-  if (recv != null) {
-    if (recv >= 58) pushUnique(strengthsOut, `Receiving trajectory (${recv.toFixed(1)}) supports legitimate three-down usage.`);
-    else if (recv < 45) pushUnique(weaknessesOut, `Receiving profile (${recv.toFixed(1)}) is limited, which can cap third-down role value.`);
+  if (recv != null && recv >= 58) {
+    strengths.push(
+      `Receiving trajectory of ${recv.toFixed(1)} supports genuine three-down usage at the next level. Reliable involvement in the passing game gives confidence in his ability to contribute consistently on third downs. This dual-threat capability raises his overall role ceiling in modern NFL offenses.`
+    );
   }
-  if (athl != null) {
-    if (athl >= 65) pushUnique(strengthsOut, `Athletic profile grades well (${athl.toFixed(1)}), supporting translatable NFL movement traits.`);
-    else if (athl < 45) pushUnique(weaknessesOut, `Athletic score (${athl.toFixed(1)}) is a concern relative to modern RB role demands.`);
+  if (consistency != null && consistency >= 75) {
+    strengths.push(
+      `Exceptional year-to-year consistency (score: ${consistency.toFixed(1)}) sets him apart from boom-or-bust prospects in this class. Coaches at every level value backs they can count on week after week. This predictable production is among the most underrated signals for projection accuracy.`
+    );
   }
-  if (pff != null) {
-    if (pff >= 80) pushUnique(strengthsOut, `PFF evaluation is favorable (${pff.toFixed(1)}), adding confidence to film-aligned projection quality.`);
-    else if (pff < 70) pushUnique(weaknessesOut, `PFF signal (${pff.toFixed(1)}) is modest, so role confidence needs to come from situation and development.`);
+  if (improvement != null && improvement >= 60) {
+    strengths.push(
+      `Clear upward development arc with improvement score of ${improvement.toFixed(1)}, indicating steady growth through his college career. Players still climbing late in their college years retain valuable growth runway at the professional level. This positive trajectory suggests meaningful NFL development potential remains.`
+    );
   }
-  if (consistency != null) {
-    if (consistency >= 75) pushUnique(strengthsOut, `Year-to-year consistency (${consistency.toFixed(1)}) supports a reliable projection floor.`);
-    else if (consistency < 55) pushUnique(weaknessesOut, `Consistency score (${consistency.toFixed(1)}) reflects meaningful season-to-season volatility.`);
-  }
-  if (improvement != null) {
-    if (improvement >= 60) pushUnique(strengthsOut, `Improvement score (${improvement.toFixed(1)}) shows a positive late-career development arc.`);
-    else if (improvement < 45) pushUnique(weaknessesOut, `Development arc appears flat or declining (${improvement.toFixed(1)}), which lowers growth confidence.`);
-  }
-
-  if (strongSoSCount > weakSoSCount && strongSoSCount > 0) {
-    pushUnique(strengthsOut, "Meaningful production came against strong schedule competition, improving translation confidence.");
-  } else if (weakSoSCount > strongSoSCount) {
-    pushUnique(weaknessesOut, "A larger share of production came against weaker schedule bands, adding translation uncertainty.");
-  }
-
   if (seasonCount >= 3) {
-    pushUnique(strengthsOut, `Multi-year sample (${seasonCount} seasons) improves projection stability.`);
-  } else if (seasonCount > 0) {
-    pushUnique(weaknessesOut, `Limited sample size (${seasonCount} season${seasonCount === 1 ? "" : "s"}) increases projection volatility.`);
+    strengths.push(
+      `Multi-year sample with ${seasonCount} active seasons improves projection stability and confidence. Sustained performance across multiple years provides stronger signal than single-season outliers. This track record allows clearer evaluation of baseline ability and role suitability.`
+    );
+  }
+  if (strongSoSCount > 0 && strongSoSCount >= seasonCount / 2) {
+    strengths.push(
+      `Meaningful share of production came in strong-schedule competition, validating the underlying numbers against elite opponents. Output earned versus better defensive talent is more predictive than inflated statistics against overmatched defenses. This schedule context reinforces the legitimacy of his scoring profile.`
+    );
+  }
+  if (athl != null && athl >= 65) {
+    strengths.push(
+      `Athletic profile grades well at ${athl.toFixed(1)}, indicating translatable NFL movement traits and physical tools. Combine numbers provide concrete floor for viability even if college production didn't fully leverage those gifts. This athleticism supports developmental upside at the professional level.`
+    );
   }
 
-  const fallbackStrengths = [
-    "Profile has at least one translatable trait that can support a defined NFL role.",
-    "Overall scoring mix suggests deployable value if role and scheme align early.",
-    "No single metric fully defines this profile, and blended context supports developmental upside.",
-  ];
-  const fallbackWeaknesses = [
-    "Role certainty depends heavily on landing spot and early usage design.",
-    "Projection still carries normal transition risk from college to NFL competition speed.",
-    "Early-career outcomes may vary if efficiency and touch stability do not rise together.",
-  ];
+  // Generate opposing weaknesses to balance strengths
+  if (prod != null && prod < 55) {
+    weaknesses.push(
+      `Overall production trajectory is below ideal starter thresholds at ${prod.toFixed(1)}, which leaves minimal margin for projection error in year-one deployment. To out-play that baseline in the NFL, both role fit and early usage efficiency will need to move quickly in his favor. The statistical foundation is solid enough for a defined role, but not elite.`
+    );
+  } else if (prod != null && prod < 60) {
+    weaknesses.push(
+      `Production trajectory of ${prod.toFixed(1)} is workable but carries normal transition risk against NFL speed and defensive structure. Early-down viability alone is rarely sufficient without parallel passing-game trust and comfort. Realizing this floor will depend heavily on offensive scheme alignment.`
+    );
+  }
 
-  while (strengthsOut.length < 3 && fallbackStrengths.length) pushUnique(strengthsOut, fallbackStrengths.shift());
-  while (weaknessesOut.length < 3 && fallbackWeaknesses.length) pushUnique(weaknessesOut, fallbackWeaknesses.shift());
+  if (rush != null && rush < 52) {
+    weaknesses.push(
+      `Rushing trajectory of ${rush.toFixed(1)} falls below starter-caliber thresholds, which may limit his offensive role definition in year one. The ground game production didn't emerge as a dominant feature in his college profile. Significant improvement or scheme fit will be necessary to maximize rushing value.`
+    );
+  }
+
+  if (recv != null && recv < 45) {
+    weaknesses.push(
+      `Receiving profile is limited at ${recv.toFixed(1)}, which can artificially cap his third-down role value in modern offenses. Meaningful pass-catching contribution did not emerge as a college strength. NFL teams seeking three-down flexibility may view this as a position-specific limitation.`
+    );
+  }
+
+  if (consistency != null && consistency < 55) {
+    weaknesses.push(
+      `Consistency score of ${consistency.toFixed(1)}) reflects meaningful season-to-season volatility in production output. This variability can mask role consistency if weekly usage changes significantly by game script or opponent matchup. Stable fantasy and professional outcomes usually require both efficiency AND predictable touch deployment.`
+    );
+  }
+
+  if (improvement != null && improvement < 50) {
+    weaknesses.push(
+      `Development arc appears flat or slightly declining at an improvement score of ${improvement.toFixed(1)}, which lowers late-career growth confidence. Players still climbing in their final college years retain meaningful growth runway; flat profiles suggest limited upside. This trajectory pattern indicates more conservative ceiling projections may be appropriate.`
+    );
+  }
+
+  if (seasonCount < 3) {
+    weaknesses.push(
+      `Limited active-season sample at just ${seasonCount} year${seasonCount === 1 ? "" : "s"} increases projection uncertainty materially. Smaller samples carry higher variance and require much cleaner role and scheme alignment early at the professional level. The absence of a longer track record reduces prediction confidence relative to four-year players.`
+    );
+  }
+
+  if (weakSoSCount > strongSoSCount) {
+    weaknesses.push(
+      `Strength-of-schedule context introduces caution because a larger share of seasons came against weaker competition bands. Replication against faster, more physical defensive fronts remains the central validation question for his profile. Production inflation due to weak schedule is a real concern that requires careful filtering.`
+    );
+  }
+
+  if (athl != null && athl < 50) {
+    weaknesses.push(
+      `Athletic score of ${athl.toFixed(1)}) is below average relative to modern RB role demands at the professional level. Combine limitations and movement qualities suggest some ceiling constraints on translatable traits. Scheme fit and role definition will need to be extremely precise to overcome athleticism gaps.`
+    );
+  }
+
+  const fillToCount = 3;
+  while (strengths.length < fillToCount) {
+    if (strengths.length === 0) strengths.push("Production profile contains at least one translatable trait that can support a defined NFL role. Overall scoring mix suggests deployable value if role and scheme alignment occur early. The blended context indicates developmental potential worth monitoring.");
+    else strengths.push("No single metric fully dominates the projection picture, allowing blended contextual evaluation. Multiple scoring paths exist depending on offensive deployment strategy. The versatility embedded in his profile creates several potential role outcomes.");
+  }
+  while (weaknesses.length < fillToCount) {
+    if (weaknesses.length === 0) weaknesses.push("Role certainty depends heavily on landing spot and early-career usage design by coaching staff. Projection still carries normal transition risk inherent in moving from college to professional speed. Early outcomes may vary if efficiency and touch stability do not rise together in parallel.");
+    else weaknesses.push("Scheme and deployment fit will play an outsized role in whether this profile reaches its percentile outcomes. Players in this tier often separate by landing spot details as much as raw talent differences. Upside realization is contingent on contextual opportunity and coaching adaptation.");
+  }
 
   return {
-    strengths: strengthsOut.slice(0, 3),
-    weaknesses: weaknessesOut.slice(0, 3),
+    strengths: strengths.slice(0, 3),
+    weaknesses: weaknesses.slice(0, 3),
   };
 }
 
@@ -5290,6 +5336,7 @@ function normalizeSeasonForScoring(s) {
   const rec = Number(s?.receptions);
   const targets = Number(s?.targets);
   const recYds = toNum(s?.rec_yds);
+  const recvSnaps = toNum(s?.recv_snaps);
   const ycoRaw = toNum(s?.yco_a);
   const mtfRaw = toNum(s?.mtf);
   const tenPlusRaw = toNum(s?.ten_plus);
@@ -5299,6 +5346,7 @@ function normalizeSeasonForScoring(s) {
   const yacRaw = toNum(s?.yac_raw);
   const mtfRecvRaw = toNum(s?.mtf_recv);
   const ypr = (Number.isFinite(rec) && rec > 0 && recYds != null) ? recYds / rec : toNum(s?.yds_per_rec);
+  const y_rr = (Number.isFinite(recvSnaps) && recvSnaps > 0 && recYds != null) ? recYds / recvSnaps : toNum(s?.y_rr);
   const ycoPerAtt = (Number.isFinite(att) && att > 0 && ycoRaw != null) ? ycoRaw / att : toNum(s?.yco_a);
   const mtfPerAtt = (Number.isFinite(att) && att > 0 && mtfRaw != null) ? mtfRaw / att : toNum(s?.mtf_a);
   const tenPlusPerAtt = (Number.isFinite(att) && att > 0 && tenPlusRaw != null) ? tenPlusRaw / att : toNum(s?.ten_plus_a);
@@ -5312,6 +5360,7 @@ function normalizeSeasonForScoring(s) {
     ...s,
     conference: s?.conference ?? s?.conf ?? "",
     yds_per_rec: ypr ?? s?.yds_per_rec,
+    y_rr: y_rr ?? s?.y_rr,
     yco_a: ycoPerAtt ?? s?.yco_a,
     mtf_a: mtfPerAtt ?? s?.mtf_a,
     ten_plus_a: tenPlusPerAtt ?? s?.ten_plus_a,
@@ -5601,6 +5650,7 @@ function AddPlayerModal({onClose, onAdd, existingPlayers, sosByYear={}, currentP
         rec_pct:        ns.rec_pct        || null,
         yds_per_rec:    ns.yds_per_rec    || null,
         yac_rec:        ns.yac_rec        || null,
+        y_rr:           ns.y_rr           || null,
         mtf_rec:        ns.mtf_rec        || null,
         // Season scores (0–100) — null for redshirt seasons
         r:          isRs ? null : Math.round(bd.rushScore * 10) / 10,
