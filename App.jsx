@@ -5189,6 +5189,40 @@ const RECV_STAT_WEIGHTS = {
 };
 // Year weights: YR1=25, YR2=28, YR3=30, YR4=28, YR5=25, YR6=20
 const YEAR_WEIGHTS = [25, 28, 30, 28, 25, 20];
+const YR6_CONFIDENCE_START = 0.10;
+const YR6_CONFIDENCE_FULL_SAMPLE = 40;
+
+function hasSeasonStatRow(playerSeasons, seasonNumber) {
+  const row = (playerSeasons && (playerSeasons[String(seasonNumber)] || playerSeasons[seasonNumber])) || null;
+  return Array.isArray(row) && row.some((pair) => Array.isArray(pair) && pair[0] != null && Number.isFinite(Number(pair[0])));
+}
+
+function getSeasonSampleSize(seasonNumber) {
+  const seen = new Set();
+  Object.entries(SEASON_STATS_BASE || {}).forEach(([name, playerSeasons]) => {
+    if (hasSeasonStatRow(playerSeasons, seasonNumber)) seen.add(name);
+  });
+  Object.entries(_customSS || {}).forEach(([name, playerSeasons]) => {
+    if (hasSeasonStatRow(playerSeasons, seasonNumber)) seen.add(name);
+  });
+  return seen.size;
+}
+
+function getYr6ConfidenceMultiplier() {
+  const n = getSeasonSampleSize(6);
+  if (n <= 0) return 0;
+  if (n >= YR6_CONFIDENCE_FULL_SAMPLE) return 1;
+  if (n === 1) return YR6_CONFIDENCE_START;
+  const span = YR6_CONFIDENCE_FULL_SAMPLE - 1;
+  const progress = (n - 1) / span;
+  return YR6_CONFIDENCE_START + progress * (1 - YR6_CONFIDENCE_START);
+}
+
+function getAdjustedYearWeight(yearIdx) {
+  const baseWeight = YEAR_WEIGHTS[yearIdx] || 25;
+  if (yearIdx !== 5) return baseWeight;
+  return baseWeight * getYr6ConfidenceMultiplier();
+}
 // SOS label → numeric score (0–100)
 const SOS_SCORE_MAP = {
   "Elite":95,"Strong":80,"Average":60,"Weak":40,"Very Weak":20,"FCS":10,"N/A":60
@@ -5302,7 +5336,7 @@ function buildProspectScore(formOrSeasons, isMultiSeason = false, athleticInputs
   // Step 3: multi-year weighted composite (YR1=25,YR2=28,YR3=30,YR4=28,YR5=25,YR6=20)
   const seasonScores = seasons.map((s, i) => ({
     score: calcSeasonProdScore(s, s.conference || fields.conference),
-    yearWeight: YEAR_WEIGHTS[i] || 25,
+    yearWeight: getAdjustedYearWeight(i),
     n: i + 1
   })).filter(s => s.score > 0);
 
@@ -5626,7 +5660,7 @@ function AddPlayerModal({onClose, onAdd, existingPlayers, sosByYear={}, currentP
     // Weighted rush / recv trajectories across active seasons
     let rushW = 0, rushSum = 0, recvW = 0, recvSum = 0;
     nonRedshirtIdxs.forEach((i, pos) => {
-      const w = YEAR_WEIGHTS[pos] || 25;
+      const w = getAdjustedYearWeight(pos);
       const bd = seasonBreakdowns[i];
       if (bd.rushScore > 0) { rushSum += bd.rushScore * w; rushW += w; }
       if (bd.recvScore > 0) { recvSum += bd.recvScore * w; recvW += w; }
@@ -7569,7 +7603,7 @@ function EditPlayerModal({onClose, onSave, allData, existingOverrides={}, sosByY
         const normalized = normalizeSeasonForScoring({ ...s, conference: conf });
         return {
           score: calcSeasonProdScore(normalized, conf),
-          weight: YEAR_WEIGHTS[i] || 25,
+          weight: getAdjustedYearWeight(i),
         };
       }).filter((s) => Number.isFinite(s.score) && s.score > 0);
       if (seasonScores.length > 0) {
@@ -9351,9 +9385,9 @@ function App() {
 
         const weighted = (arr) => {
           if (!arr.length) return null;
-          const tw = arr.reduce((s, x) => s + (YEAR_WEIGHTS[x.idx] || 25), 0);
+          const tw = arr.reduce((s, x) => s + getAdjustedYearWeight(x.idx), 0);
           if (!tw) return null;
-          return arr.reduce((s, x) => s + x.score * (YEAR_WEIGHTS[x.idx] || 25), 0) / tw;
+          return arr.reduce((s, x) => s + x.score * getAdjustedYearWeight(x.idx), 0) / tw;
         };
 
         const prodTraj = weighted(adjScores);
