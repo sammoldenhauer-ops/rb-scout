@@ -8662,10 +8662,15 @@ function App() {
     if (typeof window === "undefined" || !window.localStorage) return {};
     try {
       const raw = window.localStorage.getItem(PERSIST_KEY);
-      if (!raw) return {};
+      if (!raw) {
+        console.log("[PERSIST] No data in localStorage with key:", PERSIST_KEY);
+        return {};
+      }
       const parsed = JSON.parse(raw);
+      console.log("[PERSIST] Read from localStorage:", parsed);
       return parsed && typeof parsed === "object" ? parsed : {};
-    } catch {
+    } catch (e) {
+      console.log("[PERSIST] Error reading localStorage:", e);
       return {};
     }
   };
@@ -8682,6 +8687,13 @@ function App() {
     }
   };
   const persisted = readPersistedStore();
+  console.log("[INIT] Persisted data on app load:", {
+    hasCustomPlayers: !!persisted.customPlayers,
+    numCustomPlayers: Object.keys(persisted.customPlayers || {}).length,
+    customPlayerNames: Object.keys(persisted.customPlayers || {}),
+    hasCustomSeasons: !!persisted.customSeasons,
+    numCustomSeasons: Object.keys(persisted.customSeasons || {}).length,
+  });
 
   const isMobile = useIsMobile(860);
   const [query,setQuery]       = useState("");
@@ -8852,9 +8864,15 @@ function App() {
         customSeasonsPlayed,
         currentProjectionClass,
       };
+      console.log("[PERSIST] Writing to localStorage:", {
+        numCustomPlayers: Object.keys(customPlayers || {}).length,
+        numCustomSeasons: Object.keys(customSeasons || {}).length,
+        customPlayerNames: Object.keys(customPlayers || {})
+      });
       window.localStorage.setItem(PERSIST_KEY, JSON.stringify(payload));
-    } catch {
-      // Silently fail if localStorage is full or unavailable
+      console.log("[PERSIST] Successfully wrote to localStorage");
+    } catch (e) {
+      console.log("[PERSIST] Error writing to localStorage:", e);
     }
   }, [customPlayers, playerOverrides, customSeasons, deletedPlayers, customSoS, customFinishSeasons, customSeasonsPlayed, currentProjectionClass]);
 
@@ -9975,6 +9993,7 @@ function App() {
         existingPlayers={ALL_DATA}
         currentProjectionClass={currentProjectionClass}
         onAdd={(name,playerData,seasons)=>{
+          console.log("[ADD_PLAYER] Adding player:", name, "with", seasons?.length || 0, "seasons");
           setCustom(prev=>({...prev,[name]:playerData}));
           const ssMap={};
           seasons.forEach((s,i)=>{
@@ -9991,7 +10010,8 @@ function App() {
             recvKeys.forEach((v,ri)=>{ if(v!=null&&v!=="")row[15+ri]=[parseFloat(v),null]; });
             ssMap[key]=row;
           });
-          setCustomSS(prev=>{const n={...prev,[name]:ssMap};_customSS=n;return n;});
+          console.log("[ADD_PLAYER] Season stats map:", ssMap);
+          setCustomSS(prev=>{const n={...prev,[name]:ssMap};_customSS=n;console.log("[ADD_PLAYER] Updated customSeasons, now contains:", Object.keys(n));return n;});
           setShowAdd(false);
         }}
         sosByYear={customSoS}
