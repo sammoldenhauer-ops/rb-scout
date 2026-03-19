@@ -9205,11 +9205,12 @@ function App() {
       const localUpdatedAt = latestPayloadRef.current?.updatedAt || persisted?.updatedAt || null;
       const newerThanLocal = parseTs(cloudUpdatedAt) > parseTs(localUpdatedAt);
       const newerThanLastSeen = parseTs(cloudUpdatedAt) > parseTs(lastCloudSeenAtRef.current);
+      const localPayload = latestPayloadRef.current || buildRuntimePayload();
+      const localHasData = payloadHasCustomData(localPayload);
+      const cloudHasData = !!(row.payload && typeof row.payload === "object" && payloadHasCustomData(row.payload));
+      const shouldAdoptCloudToRepairEmptyLocal = cloudHasData && !localHasData;
 
-      if (newerThanLocal && newerThanLastSeen && row.payload && typeof row.payload === "object") {
-        const localPayload = latestPayloadRef.current || buildRuntimePayload();
-        const localHasData = payloadHasCustomData(localPayload);
-        const cloudHasData = payloadHasCustomData(row.payload);
+      if ((shouldAdoptCloudToRepairEmptyLocal || (newerThanLocal && newerThanLastSeen)) && row.payload && typeof row.payload === "object") {
 
         // Guard against wiping local runtime data with an empty cloud payload.
         if (localHasData && !cloudHasData) {
