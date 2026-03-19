@@ -8744,6 +8744,19 @@ function App() {
     return Number.isFinite(ms) ? ms : 0;
   };
 
+  const payloadHasCustomData = (payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    return (
+      Object.keys(asObj(p.customPlayers)).length > 0 ||
+      Object.keys(asObj(p.playerOverrides)).length > 0 ||
+      Object.keys(asObj(p.customSeasons)).length > 0 ||
+      Object.keys(asObj(p.deletedPlayers)).length > 0 ||
+      Object.keys(asObj(p.customSoS)).length > 0 ||
+      Object.keys(asObj(p.customFinishSeasons)).length > 0 ||
+      Object.keys(asObj(p.customSeasonsPlayed)).length > 0
+    );
+  };
+
   const applyRuntimePayload = (payload) => {
     const p = payload && typeof payload === "object" ? payload : {};
     _customSS = getMergedSeasonStats(p.customSeasons, p.playerOverrides);
@@ -8910,6 +8923,16 @@ function App() {
       const newerThanLastSeen = parseTs(cloudUpdatedAt) > parseTs(lastCloudSeenAtRef.current);
 
       if (newerThanLocal && newerThanLastSeen && row.payload && typeof row.payload === "object") {
+        const localPayload = latestPayloadRef.current || buildRuntimePayload();
+        const localHasData = payloadHasCustomData(localPayload);
+        const cloudHasData = payloadHasCustomData(row.payload);
+
+        // Guard against wiping local runtime data with an empty cloud payload.
+        if (localHasData && !cloudHasData) {
+          await upsertCloudRuntime(localPayload);
+          return;
+        }
+
         lastCloudSeenAtRef.current = cloudUpdatedAt;
         applyRuntimePayload(row.payload);
       }
