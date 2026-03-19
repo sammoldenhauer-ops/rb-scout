@@ -2736,14 +2736,16 @@ function CompsPanel({playerName, data, accent, onSelectPlayer}) {
 }
 
 function TrajectoryTiles({data, accent, recruiting}) {
-  const peakSeason = data.seasons&&data.seasons.length
-    ? data.seasons.reduce((best,s)=>s.adj_score>best.adj_score?s:best, data.seasons[0])
+  const seasonsForDerived = filterSeasonsForDerivedAnalytics(data.seasons || []);
+  const hasUntrustedYr6 = !isYr6Trusted() && (Array.isArray(data?.seasons) ? data.seasons.some((s) => Number(s?.n) === 6) : false);
+  const peakSeason = seasonsForDerived&&seasonsForDerived.length
+    ? seasonsForDerived.reduce((best,s)=>s.adj_score>best.adj_score?s:best, seasonsForDerived[0])
     : null;
   const peakLabel = peakSeason
     ? (peakSeason.sc||"")+(peakSeason.yr?" '"+String(peakSeason.yr).slice(-2):"")
     : null;
-  const finalSeason = data.seasons&&data.seasons.length
-    ? data.seasons[data.seasons.length-1] : null;
+  const finalSeason = seasonsForDerived&&seasonsForDerived.length
+    ? seasonsForDerived[seasonsForDerived.length-1] : null;
   const [expanded, setExpanded] = useState(null);
 
   const tiles = [
@@ -2773,7 +2775,7 @@ function TrajectoryTiles({data, accent, recruiting}) {
 
   const [scoutOpen, setScoutOpen] = React.useState(null); // "strengths" | "weaknesses" | null
   const fallbackScoutNotes = React.useMemo(() => {
-    const seasons = Array.isArray(data?.seasons) ? data.seasons : [];
+    const seasons = filterSeasonsForDerivedAnalytics(Array.isArray(data?.seasons) ? data.seasons : []);
     return buildUnifiedScoutNotes({ data, seasons });
   }, [data]);
 
@@ -2786,6 +2788,11 @@ function TrajectoryTiles({data, accent, recruiting}) {
 
   return (
     <div style={{marginBottom:14}}>
+      {hasUntrustedYr6 && (
+        <div style={{background:"rgba(77,166,255,0.08)",border:"1px solid rgba(77,166,255,0.25)",borderRadius:7,padding:"8px 12px",marginBottom:8,fontSize:10,color:"#4da6ff"}}>
+          YR6 is displayed but excluded from derived analytics until at least 40 YR6 players exist.
+        </div>
+      )}
       {/* 2×2 tile grid — order preserved: Peak | Final / Improvement | Consistency */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:8}}>
         {tiles.map(({label,value,color,sublabel,desc})=>(
@@ -2863,7 +2870,7 @@ function buildUnifiedScoutNotes({ data, seasons = [] }) {
     return Number.isFinite(n) ? n : null;
   };
 
-  const activeSeasons = (Array.isArray(seasons) ? seasons : []).filter((s) => !s?.redshirt);
+  const activeSeasons = filterSeasonsForDerivedAnalytics(Array.isArray(seasons) ? seasons : []).filter((s) => !s?.redshirt);
   const seasonCount = activeSeasons.length || Number(data?.num_seasons) || 0;
   const sosLabels = activeSeasons.map((s) => String(s?.sos_label || "Average"));
   const strongSoSCount = sosLabels.filter((x) => x === "Strong" || x === "Elite").length;
@@ -5210,12 +5217,34 @@ function getSeasonSampleSize(seasonNumber) {
 
 function getYr6ConfidenceMultiplier() {
   const n = getSeasonSampleSize(6);
-  if (n <= 0) return 0;
-  if (n >= YR6_CONFIDENCE_FULL_SAMPLE) return 1;
-  if (n === 1) return YR6_CONFIDENCE_START;
-  const span = YR6_CONFIDENCE_FULL_SAMPLE - 1;
-  const progress = (n - 1) / span;
-  return YR6_CONFIDENCE_START + progress * (1 - YR6_CONFIDENCE_START);
+  if (n < YR6_CONFIDENCE_FULL_SAMPLE) return 0;
+  return 1;
+}
+
+function isYr6Trusted() {
+  return getYr6ConfidenceMultiplier() >= 1;
+}
+
+function shouldIncludeSeasonInDerivedAnalyticsByN(seasonNumber) {
+  const n = Number(seasonNumber);
+  if (!Number.isFinite(n)) return true;
+  if (n !== 6) return true;
+  return isYr6Trusted();
+}
+
+function seasonNumberForAnalytics(season, fallbackN) {
+  const n = Number(season?.n);
+  if (Number.isFinite(n)) return n;
+  const fb = Number(fallbackN);
+  return Number.isFinite(fb) ? fb : null;
+}
+
+function shouldIncludeSeasonInDerivedAnalytics(season, fallbackN) {
+  return shouldIncludeSeasonInDerivedAnalyticsByN(seasonNumberForAnalytics(season, fallbackN));
+}
+
+function filterSeasonsForDerivedAnalytics(seasons) {
+  return (Array.isArray(seasons) ? seasons : []).filter((s, i) => shouldIncludeSeasonInDerivedAnalytics(s, i + 1));
 }
 
 function getAdjustedYearWeight(yearIdx) {
@@ -5335,10 +5364,11 @@ function buildProspectScore(formOrSeasons, isMultiSeason = false, athleticInputs
 
   // Step 3: multi-year weighted composite (YR1=25,YR2=28,YR3=30,YR4=28,YR5=25,YR6=20)
   const seasonScores = seasons.map((s, i) => ({
+    season: s,
+    n: i + 1,
     score: calcSeasonProdScore(s, s.conference || fields.conference),
     yearWeight: getAdjustedYearWeight(i),
-    n: i + 1
-  })).filter(s => s.score > 0);
+  })).filter(s => shouldIncludeSeasonInDerivedAnalytics(s.season, s.n) && s.score > 0);
 
   let prodScore = 0;
   if (seasonScores.length > 0) {
@@ -5655,7 +5685,11 @@ function AddPlayerModal({onClose, onAdd, existingPlayers, sosByYear={}, currentP
     );
 
     // Indices of non-redshirt seasons (for trajectory / traj_peak / num_seasons)
-    const nonRedshirtIdxs = form.seasons.reduce((acc, s, i) => (!s.redshirt ? [...acc, i] : acc), []);
+    const nonRedshirtIdxs = form.seasons.reduce((acc, s, i) => {
+      if (s.redshirt) return acc;
+      if (!shouldIncludeSeasonInDerivedAnalytics(s, i + 1)) return acc;
+      return [...acc, i];
+    }, []);
 
     // Weighted rush / recv trajectories across active seasons
     let rushW = 0, rushSum = 0, recvW = 0, recvSum = 0;
@@ -7602,10 +7636,12 @@ function EditPlayerModal({onClose, onSave, allData, existingOverrides={}, sosByY
         const conf = s.conference || s.conf || form.conference || "Other";
         const normalized = normalizeSeasonForScoring({ ...s, conference: conf });
         return {
+          season: s,
+          n: i + 1,
           score: calcSeasonProdScore(normalized, conf),
           weight: getAdjustedYearWeight(i),
         };
-      }).filter((s) => Number.isFinite(s.score) && s.score > 0);
+      }).filter((s) => shouldIncludeSeasonInDerivedAnalytics(s.season, s.n) && Number.isFinite(s.score) && s.score > 0);
       if (seasonScores.length > 0) {
         const tw = seasonScores.reduce((sum, s) => sum + s.weight, 0);
         if (tw > 0) {
@@ -9354,7 +9390,7 @@ function App() {
           };
 
           const {rushScore, recvScore, adjScore} = calcSeasonComponents(seasonInput);
-          if (!isRedshirt) {
+          if (!isRedshirt && shouldIncludeSeasonInDerivedAnalytics(baseMeta, n)) {
             const scoreIdx = adjScores.length;
             rushScores.push({idx:scoreIdx, score:rushScore});
             recvScores.push({idx:scoreIdx, score:recvScore});
