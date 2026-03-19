@@ -7201,8 +7201,24 @@ function EditPlayerModal({onClose, onSave, allData, existingOverrides={}, sosByY
     const pff = toNum(pffScoreFromBoardRank(form.pff_board_rank) || form.pff_score) ?? 0;
 
     let prod = origProd;
-    // Don't recalculate prod_trajectory in preview — let it update after save via ALL_DATA
-    // This avoids issues with intermediate empty values during form edits
+    // Recalculate preview production only when season content actually changed.
+    const seasonsChanged = initialSeasonSigRef.current !== buildSeasonSignature(form.seasons || []);
+    if (seasonsChanged) {
+      const seasonScores = (form.seasons || []).map((s, i) => {
+        const conf = s.conference || s.conf || form.conference || "Other";
+        const normalized = normalizeSeasonForScoring({ ...s, conference: conf });
+        return {
+          score: calcSeasonProdScore(normalized, conf),
+          weight: YEAR_WEIGHTS[i] || 25,
+        };
+      }).filter((s) => Number.isFinite(s.score) && s.score > 0);
+      if (seasonScores.length > 0) {
+        const tw = seasonScores.reduce((sum, s) => sum + s.weight, 0);
+        if (tw > 0) {
+          prod = Math.round((seasonScores.reduce((sum, s) => sum + s.score * s.weight, 0) / tw) * 10) / 10;
+        }
+      }
+    }
     
     const prospectScore = Math.min(100, Math.round(
       (origProspect + (pff - origPff) * 0.15 + (prod - origProd) * 0.45) * 10
@@ -7214,7 +7230,7 @@ function EditPlayerModal({onClose, onSave, allData, existingOverrides={}, sosByY
       pff_score: Math.round(pff * 10) / 10,
       tier: scoreToTier(prospectScore),
     };
-  }, [form?.pff_board_rank, form?.pff_score, originalScore]);
+  }, [form?.pff_board_rank, form?.pff_score, form?.seasons, form?.conference, originalScore]);
 
   const next = () => {
     if (step < 4) setStep(step + 1);
