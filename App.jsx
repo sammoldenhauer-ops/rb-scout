@@ -7341,6 +7341,9 @@ function EditPlayerModal({onClose, onSave, allData, existingOverrides={}, sosByY
       seasons.forEach(s => {
         cleaned.seasonStats[String(s.n)] = s.row;
       });
+      // Season stats changed: let ALL_DATA recalculate prod_trajectory from the
+      // fresh season data (ydom, tddom, etc.) instead of locking to the old value.
+      delete cleaned.prod_trajectory;
     }
 
     if (!Object.keys(cleaned.athletic).length) delete cleaned.athletic;
