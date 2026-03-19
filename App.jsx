@@ -9001,10 +9001,16 @@ function App() {
   const [lastBackupAt, setLastBackupAt] = useState(() => readLastBackupAt());
   const [cloudSyncStatus, setCloudSyncStatus] = useState("OFF");
   const [cloudSyncError, setCloudSyncError] = useState("");
+  const [runtimeUpdatedAt, setRuntimeUpdatedAt] = useState(() => {
+    const ts = String(persisted.updatedAt || "").trim();
+    return ts || new Date().toISOString();
+  });
   const latestPayloadRef = useRef(null);
   const cloudPushTimerRef = useRef(null);
   const isApplyingCloudRef = useRef(false);
   const lastCloudSeenAtRef = useRef(null);
+  const hasHydratedRuntimeRef = useRef(false);
+  const hasCompletedInitialCloudPullRef = useRef(false);
   const cloudSyncEnabled = !!(hasValidSupabaseUrl && keyLooksValid && SUPABASE_TABLE && SUPABASE_ROW_ID);
 
   const parseTs = (ts) => {
@@ -9106,7 +9112,7 @@ function App() {
 
   const buildRuntimePayload = () => ({
     version: "rbscout_v6_runtime_data",
-    updatedAt: new Date().toISOString(),
+    updatedAt: runtimeUpdatedAt || new Date().toISOString(),
     customPlayers,
     playerOverrides,
     customSeasons,
@@ -9116,6 +9122,15 @@ function App() {
     customSeasonsPlayed,
     currentProjectionClass,
   });
+
+  useEffect(() => {
+    if (!hasHydratedRuntimeRef.current) {
+      hasHydratedRuntimeRef.current = true;
+      return;
+    }
+    if (isApplyingCloudRef.current) return;
+    setRuntimeUpdatedAt(new Date().toISOString());
+  }, [customPlayers, playerOverrides, customSeasons, deletedPlayers, customSoS, customFinishSeasons, customSeasonsPlayed, currentProjectionClass]);
 
   useEffect(() => {
     const merged = { ...customSeasons };
@@ -9129,14 +9144,14 @@ function App() {
 
   useEffect(() => {
     latestPayloadRef.current = buildRuntimePayload();
-  }, [customPlayers, playerOverrides, customSeasons, deletedPlayers, customSoS, customFinishSeasons, customSeasonsPlayed, currentProjectionClass]);
+  }, [customPlayers, playerOverrides, customSeasons, deletedPlayers, customSoS, customFinishSeasons, customSeasonsPlayed, currentProjectionClass, runtimeUpdatedAt]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.localStorage) return;
     try {
       const payload = {
         version: "rbscout_v6_runtime_data",
-        updatedAt: new Date().toISOString(),
+        updatedAt: runtimeUpdatedAt || new Date().toISOString(),
         customPlayers,
         playerOverrides,
         customSeasons,
@@ -9150,7 +9165,7 @@ function App() {
     } catch {
       // Silently fail if localStorage is full or unavailable
     }
-  }, [customPlayers, playerOverrides, customSeasons, deletedPlayers, customSoS, customFinishSeasons, customSeasonsPlayed, currentProjectionClass]);
+  }, [customPlayers, playerOverrides, customSeasons, deletedPlayers, customSoS, customFinishSeasons, customSeasonsPlayed, currentProjectionClass, runtimeUpdatedAt]);
 
   useEffect(() => {
     if (!hasValidSupabaseUrl && String(env.VITE_SUPABASE_URL || "").trim()) {
@@ -9182,6 +9197,7 @@ function App() {
       if (!row) {
         const localPayload = latestPayloadRef.current || buildRuntimePayload();
         await upsertCloudRuntime(localPayload);
+        hasCompletedInitialCloudPullRef.current = true;
         return;
       }
 
@@ -9198,12 +9214,16 @@ function App() {
         // Guard against wiping local runtime data with an empty cloud payload.
         if (localHasData && !cloudHasData) {
           await upsertCloudRuntime(localPayload);
+          hasCompletedInitialCloudPullRef.current = true;
           return;
         }
 
         lastCloudSeenAtRef.current = cloudUpdatedAt;
+        setRuntimeUpdatedAt(cloudUpdatedAt || row?.payload?.updatedAt || new Date().toISOString());
         applyRuntimePayload(row.payload);
       }
+
+      hasCompletedInitialCloudPullRef.current = true;
     };
 
     pullCloud();
@@ -9267,6 +9287,7 @@ function App() {
     }
 
     if (!cloudSyncEnabled || isApplyingCloudRef.current) return;
+    if (!hasCompletedInitialCloudPullRef.current) return;
     if (cloudPushTimerRef.current) window.clearTimeout(cloudPushTimerRef.current);
     cloudPushTimerRef.current = window.setTimeout(() => {
       const latest = latestPayloadRef.current || payload;
@@ -9276,7 +9297,7 @@ function App() {
     return () => {
       if (cloudPushTimerRef.current) window.clearTimeout(cloudPushTimerRef.current);
     };
-  }, [customPlayers, playerOverrides, customSeasons, deletedPlayers, customSoS, customFinishSeasons, customSeasonsPlayed, currentProjectionClass]);
+  }, [customPlayers, playerOverrides, customSeasons, deletedPlayers, customSoS, customFinishSeasons, customSeasonsPlayed, currentProjectionClass, runtimeUpdatedAt]);
 
   const ALL_DATA = useMemo(()=>{
     const mergedBase = {...ALL_PLAYERS,...customPlayers};
