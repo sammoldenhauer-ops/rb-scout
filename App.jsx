@@ -3109,9 +3109,16 @@ function PlayerCard({player, data, onClose, onSelectPlayer, onBack, allData}) {
   const numSeasons = ssSeasonCount || data.num_seasons||(data.seasons&&data.seasons.length)||0;
   const oneSeason = numSeasons<=2;
   const tooFewForSparkline = numSeasons<2;
-  const projT12Rank = useMemo(()=>{const vals=Object.values(ALL_PLAYERS).map(p=>p.proj_t12).filter(v=>v!=null).sort((a,b)=>b-a);return data.proj_t12!=null?vals.indexOf(data.proj_t12)+1:null;},[data.name,ALL_PLAYERS]);
-  const projT24Rank = useMemo(()=>{const vals=Object.values(ALL_PLAYERS).map(p=>p.proj_t24).filter(v=>v!=null).sort((a,b)=>b-a);return data.proj_t24!=null?vals.indexOf(data.proj_t24)+1:null;},[data.name,ALL_PLAYERS]);
-  const totalPlayers = Object.keys(ALL_PLAYERS).length;
+  const runtimePlayers = allData && typeof allData === "object" ? allData : ALL_PLAYERS;
+  const projT12Rank = useMemo(()=>{
+    const vals=Object.values(runtimePlayers).map(p=>p.proj_t12).filter(v=>v!=null).sort((a,b)=>b-a);
+    return data.proj_t12!=null?vals.indexOf(data.proj_t12)+1:null;
+  },[data.proj_t12, runtimePlayers]);
+  const projT24Rank = useMemo(()=>{
+    const vals=Object.values(runtimePlayers).map(p=>p.proj_t24).filter(v=>v!=null).sort((a,b)=>b-a);
+    return data.proj_t24!=null?vals.indexOf(data.proj_t24)+1:null;
+  },[data.proj_t24, runtimePlayers]);
+  const totalPlayers = Object.keys(runtimePlayers).length;
   return (
     <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,0.88)",backdropFilter:"blur(8px)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"0",overflowY:"auto"}}>
       <div onClick={e=>e.stopPropagation()} style={{background:ts.bg,borderRadius:"0 0 16px 16px",border:"1.5px solid "+accent+"44",boxShadow:"0 0 60px "+accent+"12,0 20px 50px rgba(0,0,0,0.8)",width:"100%",maxWidth:700,minHeight:"100vh",fontFamily:"monospace",position:"relative"}}>
