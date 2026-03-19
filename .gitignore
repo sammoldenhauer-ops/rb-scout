@@ -3,4 +3,5 @@ dist
 .env
 __restore_*.jsx
 __linecount.txt
+autopush.ps1
 

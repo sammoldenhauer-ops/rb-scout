@@ -7194,26 +7194,42 @@ function EditPlayerModal({onClose, onSave, allData, existingOverrides={}, sosByY
   
   const previewScore = React.useMemo(() => {
     if (!form || !originalScore) return null;
-    // Use stored prod/athl scores — they reflect the actual saved data.
-    // Only PFF (and therefore prospect) changes when the user edits the PFF rank.
-    // This matches the ALL_DATA formula that runs after a save.
-    const prod = toNum(originalScore.prod_trajectory) ?? 0;
+    const origProd = toNum(originalScore.prod_trajectory) ?? 0;
     const athl = toNum(originalScore.athl_score) ?? 0;
     const origProspect = toNum(originalScore.prospect_score) ?? 0;
     const origPff = toNum(originalScore.pff_score) ?? 0;
-    // Always derive from board rank first so review matches the UI mapping exactly.
     const pff = toNum(pffScoreFromBoardRank(form.pff_board_rank) || form.pff_score) ?? 0;
-    // Keep score movement aligned with user intent in edit review:
-    // if only PFF rank changes, prospect should move by 15% of that PFF delta.
-    const prospectScore = Math.min(100, Math.round((origProspect + (pff - origPff) * 0.15) * 10) / 10);
+
+    // Recalculate prod_trajectory live from form seasons whenever any season's
+    // scores were cleared by an edit (setSeason clears rush_score/recv_score/adj_score).
+    const editedSeasons = form.seasons || [];
+    const hasEditedSeasons = editedSeasons.some(
+      s => s.rush_score === '' || s.recv_score === '' || s.adj_score === ''
+    );
+    let prod = origProd;
+    if (hasEditedSeasons) {
+      const seasonScores = editedSeasons.map((s, i) => {
+        const conf = s.conference || s.conf || form.conference || "Other";
+        const normalized = normalizeSeasonForScoring({ ...s, conference: conf });
+        return { score: calcSeasonProdScore(normalized, conf), weight: YEAR_WEIGHTS[i] || 25 };
+      }).filter(s => Number.isFinite(s.score) && s.score > 0);
+      if (seasonScores.length > 0) {
+        const tw = seasonScores.reduce((sum, s) => sum + s.weight, 0);
+        prod = Math.round((seasonScores.reduce((sum, s) => sum + s.score * s.weight, 0) / tw) * 10) / 10;
+      }
+    }
+
+    const prospectScore = Math.min(100, Math.round(
+      (origProspect + (pff - origPff) * 0.15 + (prod - origProd) * 0.45) * 10
+    ) / 10);
     return {
       prospect_score: prospectScore,
-      prod_trajectory: Math.round(prod * 10) / 10,
+      prod_trajectory: prod,
       athl_score: Math.round(athl * 10) / 10,
       pff_score: Math.round(pff * 10) / 10,
       tier: scoreToTier(prospectScore),
     };
-  }, [form?.pff_board_rank, form?.pff_score, originalScore]);
+  }, [form?.pff_board_rank, form?.pff_score, form?.seasons, form?.conference, originalScore]);
 
   const next = () => {
     if (step < 4) setStep(step + 1);
@@ -7341,9 +7357,6 @@ function EditPlayerModal({onClose, onSave, allData, existingOverrides={}, sosByY
       seasons.forEach(s => {
         cleaned.seasonStats[String(s.n)] = s.row;
       });
-      // Season stats changed: let ALL_DATA recalculate prod_trajectory from the
-      // fresh season data (ydom, tddom, etc.) instead of locking to the old value.
-      delete cleaned.prod_trajectory;
     }
 
     if (!Object.keys(cleaned.athletic).length) delete cleaned.athletic;
